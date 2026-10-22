@@ -1,0 +1,151 @@
+rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// This security rules file assumes the following data structures:
+//
+// Collection: teachers
+// Document ID: {teacherUid} (matches Firebase Auth UID)
+// Fields:
+//   - Provisioned by administrators/console only (client write is disabled).
+//
+// Collection: students
+// Document ID: {studentId}
+// Fields:
+//   - name: string (required, 1..40 chars) - Student display name
+//   - grade: int (required, 1..3) - Middle school grade (1~3학년)
+//   - classNum: int (required, 1..20) - Class number (반)
+//   - studentNum: int (required, 1..50) - Student number (번호)
+//   - ownerUid: string (required, 1..128 chars, immutable for students) - Student Auth UID
+//   - updatedAt: timestamp (optional) - Last modification timestamp
+//
+// Subcollection: students/{studentId}/records
+// Document ID: {dateStr} (YYYY-MM-DD format)
+// Fields:
+//   - run: number (required, 0..500) - Running laps count
+//   - jump: int (required, 0..50000) - Jump rope count
+//   - mood: string (required, 0..30 chars) - Condition/mood label
+//   - note: string (required, 0..100 chars) - Daily reflection note
+//   - updatedBy: string (required, must match request.auth.uid) - Editor Auth UID
+//   - updatedAt: timestamp (optional) - Last modification timestamp
+//
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isTeacher() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/teachers/$(request.auth.uid));
+    }
+
+    function isParentStudentOwner(studentId) {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/students/$(studentId)) &&
+        get(/databases/$(database)/documents/students/$(studentId)).data.ownerUid == request.auth.uid;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function validStringLength(field, minLen, maxLen) {
+      return request.resource.data[field] is string &&
+        request.resource.data[field].size() >= minLen &&
+        request.resource.data[field].size() <= maxLen;
+    }
+
+    function isValidDateKey(dateStr) {
+      return dateStr is string &&
+        dateStr.matches("^\\d{4}-\\d{2}-\\d{2}$");
+    }
+
+    // ===============================================================
+    // Domain Validators (Used in BOTH create and update)
+    // ===============================================================
+
+    function isValidStudent(data) {
+      return hasRequiredFields(['name', 'grade', 'classNum', 'studentNum', 'ownerUid']) &&
+        hasOnlyAllowedFields(['name', 'grade', 'classNum', 'studentNum', 'ownerUid', 'updatedAt']) &&
+        validStringLength('name', 1, 40) &&
+        data.grade is int && data.grade >= 1 && data.grade <= 3 &&
+        data.classNum is int && data.classNum >= 1 && data.classNum <= 20 &&
+        data.studentNum is int && data.studentNum >= 1 && data.studentNum <= 50 &&
+        validStringLength('ownerUid', 1, 128) &&
+        (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    function isValidRecord(data, dateStr) {
+      return isValidDateKey(dateStr) &&
+        hasRequiredFields(['run', 'jump', 'mood', 'note', 'updatedBy']) &&
+        hasOnlyAllowedFields(['run', 'jump', 'mood', 'note', 'updatedBy', 'updatedAt']) &&
+        data.run is number && data.run >= 0 && data.run <= 500 &&
+        data.jump is int && data.jump >= 0 && data.jump <= 50000 &&
+        validStringLength('mood', 0, 30) &&
+        validStringLength('note', 0, 100) &&
+        data.updatedBy is string && data.updatedBy == request.auth.uid &&
+        (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    // Teachers directory: provisioned only via Admin SDK / Firebase Console
+    match /teachers/{teacherUid} {
+      allow read: if isOwner(teacherUid);
+      allow write: if false;
+    }
+
+    // Student profiles
+    match /students/{studentId} {
+      allow read: if isAuthenticated() &&
+        (resource.data.ownerUid == request.auth.uid || isTeacher());
+
+      allow create: if isAuthenticated() &&
+        isValidStudent(request.resource.data) &&
+        (request.resource.data.ownerUid == request.auth.uid || isTeacher());
+
+      allow update: if isAuthenticated() &&
+        isValidStudent(request.resource.data) &&
+        ((resource.data.ownerUid == request.auth.uid &&
+          request.resource.data.ownerUid == resource.data.ownerUid) ||
+         isTeacher());
+
+      allow delete: if isTeacher();
+
+      // Daily fitness records per student
+      match /records/{dateStr} {
+        allow read: if isParentStudentOwner(studentId) || isTeacher();
+
+        allow create, update: if (isParentStudentOwner(studentId) || isTeacher()) &&
+          isValidRecord(request.resource.data, dateStr);
+
+        allow delete: if isParentStudentOwner(studentId) || isTeacher();
+      }
+    }
+
+    // Default deny for all other paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>중학교 건강체력교실 - 학생 기록 & 교사 통합 관리 웹앱</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-container">
+    <!-- 상단 헤더 & 클라우드 상태 & 학생 선택 -->
+    <header class="app-header">
+      <div class="header-top">
+        <div class="brand">
+          <div class="brand-badges">
+            <span class="brand-badge">PAPS 건강체력교실</span>
+            <button type="button" id="firebaseModalBtn" class="cloud-badge offline" title="클릭하여 Firebase 서버 연동 설정 열기">
+              <span class="status-dot"></span>
+              <span id="cloudStatusText">로컬 체험 모드 (Firebase 연결 설정)</span>
+            </button>
+          </div>
+          <h1>오늘도 한 걸음! 체력 UP 기록 & 관리 시스템</h1>
+        </div>
+
+        <div class="student-selector">
+          <label for="studentSelect" class="selector-label">현재 선택 학생:</label>
+          <select id="studentSelect" aria-label="학생 선택"></select>
+          <button type="button" id="resetDemoBtn" class="btn-ghost" title="예시 데이터 초기화">
+            예시 초기화
+          </button>
+        </div>
+      </div>
+
+      <!-- 선택된 학생 핵심 요약 배너 -->
+      <section class="summary-strip" aria-label="선택 학생 이번 달 참여 요약">
+        <div class="stat-pill">
+          <span class="stat-icon">🗓️</span>
+          <div>
+            <span class="stat-label">선택 학생 이번 달 참여</span>
+            <strong id="statDays">0일</strong>
+          </div>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-icon">🔥</span>
+          <div>
+            <span class="stat-label">연속 참여 스트릭</span>
+            <strong id="statStreak">0일째</strong>
+          </div>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-icon">🏃</span>
+          <div>
+            <span class="stat-label">이번 달 누적 달리기</span>
+            <strong id="statRunTotal">0바퀴</strong>
+          </div>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-icon">🪢</span>
+          <div>
+            <span class="stat-label">이번 달 누적 줄넘기</span>
+            <strong id="statJumpTotal">0개</strong>
+          </div>
+        </div>
+      </section>
+
+      <!-- 메인 3대 탭 네비게이션 -->
+      <nav class="tab-nav" role="tablist" aria-label="주요 화면 전환">
+        <button
+          type="button"
+          role="tab"
+          id="tabBtnRecord"
+          aria-selected="true"
+          aria-controls="panelRecord"
+          class="tab-btn active"
+          data-tab="record"
+        >
+          ✍️ 학생 운동 기록하기
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="tabBtnCalendar"
+          aria-selected="false"
+          aria-controls="panelCalendar"
+          class="tab-btn"
+          data-tab="calendar"
+        >
+          📅 참여 달력 한눈에 보기
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="tabBtnTeacher"
+          aria-selected="false"
+          aria-controls="panelTeacher"
+          class="tab-btn teacher-tab-btn"
+          data-tab="teacher"
+        >
+          👩‍🏫 교사용 학급 관리·통계
+        </button>
+      </nav>
+    </header>
+
+    <!-- 메인 컨텐츠 영역 -->
+    <main class="app-main">
+      <!-- [탭 1] 학생 운동 기록하기 -->
+      <section
+        id="panelRecord"
+        role="tabpanel"
+        aria-labelledby="tabBtnRecord"
+        class="tab-panel"
+      >
+        <div class="record-grid">
+          <!-- 입력 폼 카드 -->
+          <div class="card">
+            <div class="card-header">
+              <h2>날짜별 운동 기록 입력</h2>
+              <span id="recordStatusBadge" class="status-badge">미기록</span>
+            </div>
+
+            <form id="recordForm" novalidate>
+              <div class="form-group date-group">
+                <label for="recordDate">운동한 날짜</label>
+                <div class="date-input-row">
+                  <input type="date" id="recordDate" required />
+                  <button type="button" id="todayBtn" class="btn-secondary">오늘</button>
+                </div>
+              </div>
+
+              <!-- 달리기 입력 블록 -->
+              <div class="exercise-box run-box">
+                <div class="exercise-header">
+                  <div class="exercise-title">
+                    <span class="exercise-emoji">🏃</span>
+                    <div>
+                      <h3>달리기 기록</h3>
+                      <p>일일 권장 목표: <strong id="runGoalText">5바퀴</strong> (운동장 트랙)</p>
+                    </div>
+                  </div>
+                  <span id="runPercentBadge" class="goal-percent">0%</span>
+                </div>
+
+                <div class="input-with-unit">
+                  <input
+                    type="number"
+                    id="runCount"
+                    min="0"
+                    max="500"
+                    step="0.5"
+                    value="0"
+                    placeholder="0"
+                  />
+                  <span class="unit-label">바퀴</span>
+                </div>
+
+                <div class="quick-buttons" data-target="runCount">
+                  <button type="button" data-add="1">+1바퀴</button>
+                  <button type="button" data-add="2">+2바퀴</button>
+                  <button type="button" data-add="5">+5바퀴</button>
+                  <button type="button" data-clear="true" class="btn-clear">초기화</button>
+                </div>
+
+                <div class="progress-bar-bg">
+                  <div id="runProgressBar" class="progress-bar-fill run-fill" style="width: 0%"></div>
+                </div>
+              </div>
+
+              <!-- 줄넘기 입력 블록 -->
+              <div class="exercise-box jump-box">
+                <div class="exercise-header">
+                  <div class="exercise-title">
+                    <span class="exercise-emoji">🪢</span>
+                    <div>
+                      <h3>줄넘기 기록</h3>
+                      <p>일일 권장 목표: <strong id="jumpGoalText">300개</strong></p>
+                    </div>
+                  </div>
+                  <span id="jumpPercentBadge" class="goal-percent">0%</span>
+                </div>
+
+                <div class="input-with-unit">
+                  <input
+                    type="number"
+                    id="jumpCount"
+                    min="0"
+                    max="50000"
+                    step="10"
+                    value="0"
+                    placeholder="0"
+                  />
+                  <span class="unit-label">개</span>
+                </div>
+
+                <div class="quick-buttons" data-target="jumpCount">
+                  <button type="button" data-add="50">+50개</button>
+                  <button type="button" data-add="100">+100개</button>
+                  <button type="button" data-add="200">+200개</button>
+                  <button type="button" data-clear="true" class="btn-clear">초기화</button>
+                </div>
+
+                <div class="progress-bar-bg">
+                  <div id="jumpProgressBar" class="progress-bar-fill jump-fill" style="width: 0%"></div>
+                </div>
+              </div>
+
+              <!-- 오늘의 컨디션 & 한줄 소감 -->
+              <div class="form-group">
+                <label>오늘의 운동 컨디션</label>
+                <div class="mood-selector" id="moodSelector">
+                  <button type="button" class="mood-btn active" data-mood="😄 상쾌해요">😄 상쾌해요</button>
+                  <button type="button" class="mood-btn" data-mood="💪 뿌듯해요">💪 뿌듯해요</button>
+                  <button type="button" class="mood-btn" data-mood="💦 숨차지만 완주!">💦 숨차지만 완주!</button>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="recordNote">한줄 다짐 / 메모 (선택)</label>
+                <input
+                  type="text"
+                  id="recordNote"
+                  maxlength="80"
+                  placeholder="예: 친구랑 쉬지 않고 3바퀴 연속 달리기 성공!"
+                />
+              </div>
+
+              <div class="form-actions">
+                <button type="submit" class="btn-primary">💾 기록 저장하기</button>
+                <button type="button" id="deleteRecordBtn" class="btn-danger" hidden>
+                  🗑️ 기록 삭제
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <!-- 우측: 최근 운동 기록 & 격려 가이드 -->
+          <div class="side-column">
+            <div class="card coach-card">
+              <h3>🌟 체력교실 참여 미션 안내</h3>
+              <p id="coachMessage">
+                달리기나 줄넘기 중 <strong>하나만 기록해도 출석 스탬프(✅)</strong>가 찍혀요!
+                일일 목표(<span id="coachGoalDesc">달리기 5바퀴, 줄넘기 300개</span>)를 모두 달성하면 <strong>황금 별(⭐) 스탬프</strong>를 획득합니다.
+              </p>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <h2>최근 기록 내역</h2>
+                <button type="button" id="goCalendarLink" class="text-link">달력에서 전체 보기 →</button>
+              </div>
+              <ul id="recentList" class="recent-list"></ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- [탭 2] 참여 달력 한눈에 보기 -->
+      <section
+        id="panelCalendar"
+        role="tabpanel"
+        aria-labelledby="tabBtnCalendar"
+        class="tab-panel"
+        hidden
+      >
+        <div class="calendar-layout">
+          <div class="card calendar-card">
+            <div class="calendar-toolbar">
+              <div class="month-nav">
+                <button type="button" id="prevMonthBtn" class="icon-btn" aria-label="이전 달">◀</button>
+                <h2 id="calendarMonthTitle">2026년 10월</h2>
+                <button type="button" id="nextMonthBtn" class="icon-btn" aria-label="다음 달">▶</button>
+              </div>
+
+              <div class="calendar-legend">
+                <span class="legend-item"><i class="dot gold"></i> ⭐ 목표 달성(완주)</span>
+                <span class="legend-item"><i class="dot green"></i> ✅ 운동 참여</span>
+                <span class="legend-item"><i class="dot gray"></i> 미참여</span>
+              </div>
+            </div>
+
+            <div class="calendar-weekdays">
+              <div class="sun">일</div>
+              <div>월</div>
+              <div>화</div>
+              <div>수</div>
+              <div>목</div>
+              <div>금</div>
+              <div class="sat">토</div>
+            </div>
+
+            <div id="calendarGrid" class="calendar-grid"></div>
+          </div>
+
+          <aside class="card day-detail-card">
+            <div class="card-header">
+              <h3 id="selectedDayTitle">날짜 상세 기록</h3>
+              <span id="selectedDayBadge" class="status-badge">선택됨</span>
+            </div>
+            <div id="selectedDayContent" class="day-detail-body"></div>
+            <button type="button" id="editSelectedDayBtn" class="btn-primary full-width">
+              ✏️ 이 날짜 기록 입력/수정하기
+            </button>
+          </aside>
+        </div>
+      </section>
+
+      <!-- [탭 3] 교사용 학급 관리·통계 화면 -->
+      <section
+        id="panelTeacher"
+        role="tabpanel"
+        aria-labelledby="tabBtnTeacher"
+        class="tab-panel"
+        hidden
+      >
+        <!-- 교사용 상단 핵심 지표 (KPI 4종) -->
+        <div class="teacher-kpi-grid">
+          <div class="card kpi-card">
+            <span class="kpi-label">전체 관리 학생 / 오늘 참여</span>
+            <strong id="kpiTotalStudents" class="kpi-value">0명</strong>
+            <span id="kpiTodayRate" class="kpi-sub">오늘(10/22) 0명 참여 (0%)</span>
+          </div>
+          <div class="card kpi-card">
+            <span class="kpi-label" id="kpiMonthLabel">10월 평균 참여일 / 목표완주율</span>
+            <strong id="kpiAvgDays" class="kpi-value">0.0일</strong>
+            <span id="kpiGoalRate" class="kpi-sub">⭐ 목표 완주 비율 0%</span>
+          </div>
+          <div class="card kpi-card">
+            <span class="kpi-label">학급 전체 누적 운동량 (이번 달)</span>
+            <strong id="kpiClassRun" class="kpi-value">🏃 0바퀴</strong>
+            <span id="kpiClassJump" class="kpi-sub">🪢 줄넘기 총 0개</span>
+          </div>
+          <div class="card kpi-card alert-kpi">
+            <span class="kpi-label">🚨 독려 필요 학생 (월 4일 미만)</span>
+            <strong id="kpiLowCount" class="kpi-value text-danger">0명</strong>
+            <span id="kpiLowNames" class="kpi-sub">모두 성실히 참여 중!</span>
+          </div>
+        </div>
+
+        <!-- 교사 컨트롤 바: 학생 추가 / 목표 설정 / CSV 다운로드 -->
+        <div class="card teacher-toolbar-card">
+          <div class="teacher-filters">
+            <select id="filterGrade" aria-label="학년 필터">
+              <option value="all">전체 학년</option>
+              <option value="1">1학년</option>
+              <option value="2">2학년</option>
+              <option value="3">3학년</option>
+            </select>
+            <select id="sortBySelect" aria-label="정렬 기준">
+              <option value="daysDesc">참여일 많은 순</option>
+              <option value="daysAsc">참여일 적은 순 (독려 대상 우선)</option>
+              <option value="runDesc">달리기 누적 순</option>
+              <option value="jumpDesc">줄넘기 누적 순</option>
+              <option value="nameAsc">학년·반·이름 순</option>
+            </select>
+            <input
+              type="search"
+              id="studentSearchInput"
+              placeholder="학생 이름 또는 반 검색..."
+              aria-label="학생 검색"
+            />
+          </div>
+
+          <div class="teacher-actions">
+            <button type="button" id="openAddStudentBtn" class="btn-primary btn-sm">
+              ➕ 신규 학생 등록
+            </button>
+            <button type="button" id="openGoalConfigBtn" class="btn-secondary btn-sm">
+              🎯 일일 목표 기준 설정
+            </button>
+            <button type="button" id="exportCsvBtn" class="btn-secondary btn-sm">
+              📥 엑셀(CSV) 내보내기
+            </button>
+          </div>
+        </div>
+
+        <!-- 신규 학생 추가 인라인 패널 (토글) -->
+        <div id="addStudentPanel" class="card collapsible-card" hidden>
+          <div class="card-header">
+            <h3>➕ 건강체력교실 신규 학생 등록</h3>
+            <button type="button" id="closeAddStudentBtn" class="btn-ghost">닫기 ✕</button>
+          </div>
+          <form id="addStudentForm" class="inline-form">
+            <div>
+              <label for="newGrade">학년</label>
+              <select id="newGrade" required>
+                <option value="1">1학년</option>
+                <option value="2" selected>2학년</option>
+                <option value="3">3학년</option>
+              </select>
+            </div>
+            <div>
+              <label for="newClass">반</label>
+              <input type="number" id="newClass" min="1" max="20" value="1" required />
+            </div>
+            <div>
+              <label for="newNumber">번호</label>
+              <input type="number" id="newNumber" min="1" max="50" value="15" required />
+            </div>
+            <div class="grow">
+              <label for="newName">학생 이름</label>
+              <input type="text" id="newName" placeholder="예: 정우성" maxlength="20" required />
+            </div>
+            <div class="form-end">
+              <button type="submit" class="btn-primary">학생 추가 저장</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- 일일 목표 설정 인라인 패널 (토글) -->
+        <div id="goalConfigPanel" class="card collapsible-card" hidden>
+          <div class="card-header">
+            <h3>🎯 학급 일일 권장 목표 설정 (황금 별 ⭐ 기준)</h3>
+            <button type="button" id="closeGoalConfigBtn" class="btn-ghost">닫기 ✕</button>
+          </div>
+          <form id="goalConfigForm" class="inline-form">
+            <div>
+              <label for="cfgRunGoal">일일 달리기 목표 (바퀴)</label>
+              <input type="number" id="cfgRunGoal" min="1" max="100" step="0.5" value="5" required />
+            </div>
+            <div>
+              <label for="cfgJumpGoal">일일 줄넘기 목표 (개)</label>
+              <input type="number" id="cfgJumpGoal" min="10" max="10000" step="10" value="300" required />
+            </div>
+            <div class="form-end">
+              <button type="submit" class="btn-primary">목표 기준 적용</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- 학생별 비교 테이블 & 일자별 학급 참여 차트 -->
+        <div class="teacher-content-grid">
+          <div class="card">
+            <div class="card-header">
+              <h2>📋 학생별 운동 참여 현황표 (<span id="teacherTableMonth">2026년 10월</span>)</h2>
+              <span class="sub-hint">학생 행의 [기록/달력]을 누르면 해당 학생 화면으로 전환됩니다.</span>
+            </div>
+            <div class="table-responsive">
+              <table class="teacher-table">
+                <thead>
+                  <tr>
+                    <th>학생 정보</th>
+                    <th>참여일수 (출석률)</th>
+                    <th>⭐ 완주</th>
+                    <th>🔥 연속</th>
+                    <th>🏃 누적 달리기</th>
+                    <th>🪢 누적 줄넘기</th>
+                    <th>최근 참여일</th>
+                    <th>상태</th>
+                    <th>관리</th>
+                  </tr>
+                </thead>
+                <tbody id="teacherTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- 일자별 학급 참여 인원 추이 & 종목 달성 비교 -->
+          <div class="card">
+            <div class="card-header">
+              <h2>📊 일자별 참여 학생 수 추이 (최근 14일)</h2>
+              <span class="sub-hint">막대 위에 마우스를 올리면 날짜별 참여 인원을 볼 수 있습니다.</span>
+            </div>
+            <div id="dailyAttendanceChart" class="attendance-chart"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Firebase 클라우드 설정 모달 -->
+    <div id="firebaseModal" class="modal-backdrop" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="fbModalTitle">
+        <div class="card-header">
+          <h2 id="fbModalTitle">☁️ Firebase 실시간 온라인 서버 연동</h2>
+          <button type="button" id="closeFirebaseModalBtn" class="btn-ghost">닫기 ✕</button>
+        </div>
+
+        <p class="modal-desc">
+          Firebase Cloud Firestore 및 Authentication(익명/교사 인증)을 연결하면 학생들이 각자 스마트폰이나 태블릿에서 입력한 기록이 교사용 통계 화면에 <strong>실시간으로 동기화</strong>됩니다.
+        </p>
+
+        <div class="fb-guide-steps">
+          <div><strong>1단계:</strong> <a href="https://console.firebase.google.com/" target="_blank" rel="noopener">Firebase 콘솔</a>에서 프로젝트 생성 후 <strong>Authentication(익명 로그인 허용)</strong>과 <strong>Cloud Firestore</strong>를 활성화합니다.</div>
+          <div><strong>2단계:</strong> 프로젝트 폴더의 <code>firestore.rules</code> 보안 규칙을 배포하거나 콘솔 Rules 탭에 붙여넣습니다.</div>
+          <div><strong>3단계:</strong> 웹 앱 설정의 <code>firebaseConfig</code> JSON(또는 키 값)을 아래에 붙여넣고 <strong>[서버 연결 시작]</strong>을 누르세요.</div>
+        </div>
+
+        <form id="firebaseConfigForm">
+          <div class="form-group">
+            <label for="fbJsonInput">firebaseConfig JSON 한 번에 붙여넣기 (또는 개별 입력)</label>
+            <textarea
+              id="fbJsonInput"
+              rows="5"
+              placeholder='{"apiKey": "AIza...", "authDomain": "my-app.firebaseapp.com", "projectId": "my-app", "appId": "1:123..."}'
+            ></textarea>
+          </div>
+
+          <div class="fb-grid-inputs">
+            <div>
+              <label for="fbApiKey">apiKey *</label>
+              <input type="text" id="fbApiKey" placeholder="AIzaSy..." required />
+            </div>
+            <div>
+              <label for="fbProjectId">projectId *</label>
+              <input type="text" id="fbProjectId" placeholder="health-fitness-school" required />
+            </div>
+            <div>
+              <label for="fbAuthDomain">authDomain</label>
+              <input type="text" id="fbAuthDomain" placeholder="project-id.firebaseapp.com" />
+            </div>
+            <div>
+              <label for="fbAppId">appId</label>
+              <input type="text" id="fbAppId" placeholder="1:000000:web:abcdef" />
+            </div>
+          </div>
+
+          <div id="fbConnectionDetail" class="fb-status-box">
+            현재 상태: 로컬 브라우저 저장소(localStorage) 모드로 동작 중입니다.
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn-primary">☁️ Firebase 서버 연결 시작</button>
+            <button type="button" id="seedToCloudBtn" class="btn-secondary" hidden>
+              📤 현재 예시 데이터를 서버에 업로드
+            </button>
+            <button type="button" id="disconnectFirebaseBtn" class="btn-danger" hidden>
+              연결 해제 (로컬 모드로 전환)
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 토스트 알림 -->
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
