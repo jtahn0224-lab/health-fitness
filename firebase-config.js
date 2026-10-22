@@ -12,11 +12,13 @@
 // ============================================================================
 
 window.DEFAULT_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyBcGcKzlX2ul2YPlyL1624lwtDP2PU3", // 선택 (웹 앱 추가 시 발급)
-  authDomain: "프로젝트ID.firebaseapp.com",
-  databaseURL: "https://paps-7b8bf-default-rtdb.firebaseio.com", // ★ 필수!
-  projectId: "p7b8bfaps-",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: ""
+  apiKey: "AIzaSyBcGcKzlX2ul2YPlyL1624lwtDP2PU3-FU",
+  authDomain: "paps-7b8bf.firebaseapp.com",
+  databaseURL: "https://paps-7b8bf-default-rtdb.firebaseio.com",
+  projectId: "paps-7b8bf",
+  storageBucket: "paps-7b8bf.firebasestorage.app",
+  messagingSenderId: "1042198758333",
+  appId: "1:1042198758333:web:cdc3fc9254de164e7108d4",
+  measurementId: "G-V2JXQFR031"
 };
+
