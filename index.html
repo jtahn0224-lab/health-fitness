@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>건강체력교실</title>
   <style>[hidden] { display: none !important; }</style>
-  <link rel="stylesheet" href="style.css?v=20261022_roster" />
+  <link rel="stylesheet" href="style.css?v=20261022_preset" />
 </head>
 <body>
   <div class="mobile-shell">
@@ -25,7 +25,7 @@
 
         <div class="top-right-actions">
           <button type="button" id="openLoginModalBtn" class="user-chip-btn" title="클릭하여 로그인/계정 전환">
-            <span id="currentUserBadge">🎒 20307 김민준</span>
+            <span id="currentUserBadge">🎒 1111 김양주</span>
             <span class="chip-arrow">변경 ▾</span>
           </button>
         </div>
@@ -75,6 +75,45 @@
               <button type="button" id="todayBtn" class="btn-today">오늘</button>
             </div>
             <span id="recordStatusBadge" class="status-badge">미기록</span>
+          </div>
+
+          <!-- 🌅 아침운동 / ☀️ 점심운동 구분 선택 및 완료 현황 카드 -->
+          <div class="session-selector-card">
+            <div class="session-card-head">
+              <span class="session-card-label">🕒 오늘의 운동 시간대 선택 (클릭하여 전환)</span>
+              <div class="session-done-pills">
+                <span id="morningDonePill" class="session-top-pill pending">🌅 아침운동 미기록</span>
+                <span id="lunchDonePill" class="session-top-pill pending">☀️ 점심운동 미기록</span>
+              </div>
+            </div>
+
+            <div class="session-tabs" role="radiogroup" aria-label="활동 시간대 선택">
+              <button type="button" id="sessionBtnMorning" class="session-tab-btn active" data-session="morning">
+                <div class="session-tab-head">
+                  <span class="session-tab-title">🌅 아침운동</span>
+                  <span id="sessionBadgeMorning" class="session-state-badge">미기록</span>
+                </div>
+                <strong id="sessionSummaryMorning" class="session-tab-sub">기록 전입니다</strong>
+                <span id="sessionNoteMorning" class="session-tab-note">아침 시간 운동을 입력해 보세요!</span>
+              </button>
+              <button type="button" id="sessionBtnLunch" class="session-tab-btn" data-session="lunch">
+                <div class="session-tab-head">
+                  <span class="session-tab-title">☀️ 점심운동</span>
+                  <span id="sessionBadgeLunch" class="session-state-badge">미기록</span>
+                </div>
+                <strong id="sessionSummaryLunch" class="session-tab-sub">기록 전입니다</strong>
+                <span id="sessionNoteLunch" class="session-tab-note">점심시간 운동을 입력해 보세요!</span>
+              </button>
+            </div>
+
+            <div id="activeSessionBanner" class="active-session-banner morning">
+              🌅 현재 <strong>[아침운동]</strong> 기록 입력 중입니다
+            </div>
+
+            <div class="session-daily-total-row">
+              <span>📊 이 날짜 합산 운동량 (아침운동 + 점심운동)</span>
+              <strong id="sessionDailyTotalText">🏃 총 0바퀴 · 🪢 총 0개</strong>
+            </div>
           </div>
 
           <!-- 🎯 이번 주(1주당) 목표 달성 현황 배너 -->
@@ -195,8 +234,8 @@
 
           <!-- 저장 / 삭제 액션 -->
           <div class="save-bar">
-            <button type="submit" class="btn-save-main">💾 오늘 운동 기록 저장하기</button>
-            <button type="button" id="deleteRecordBtn" class="btn-delete-sub" hidden>🗑️</button>
+            <button type="submit" id="saveRecordMainBtn" class="btn-save-main">💾 🌅 아침 시간 운동 기록 저장하기</button>
+            <button type="button" id="deleteRecordBtn" class="btn-delete-sub" title="현재 선택된 시간대 기록 삭제" hidden>🗑️</button>
           </div>
           <span id="coachGoalDesc" class="sr-only"></span>
         </form>
@@ -696,14 +735,14 @@
           <div class="login-highlight-box">
             <div class="field-row-2">
               <div>
-                <label for="loginStudentCode">학번 5자리</label>
+                <label for="loginStudentCode">학번 (4~5자리)</label>
                 <input
                   type="text"
                   id="loginStudentCode"
                   maxlength="5"
                   inputmode="numeric"
-                  value="20307"
-                  placeholder="예: 20307"
+                  value="1111"
+                  placeholder="예: 1111"
                   class="big-input"
                 />
               </div>
@@ -712,9 +751,9 @@
                 <input
                   type="text"
                   id="loginName"
-                  value="김민준"
+                  value="김양주"
                   maxlength="20"
-                  placeholder="예: 김민준"
+                  placeholder="예: 김양주"
                   class="big-input"
                   required
                 />
@@ -726,27 +765,25 @@
               <div>
                 <label for="loginGrade">학년</label>
                 <select id="loginGrade" required>
-                  <option value="1">1학년</option>
-                  <option value="2" selected>2학년</option>
+                  <option value="1" selected>1학년</option>
+                  <option value="2">2학년</option>
                   <option value="3">3학년</option>
                 </select>
               </div>
               <div>
                 <label for="loginClass">반</label>
-                <input type="number" id="loginClass" min="1" max="20" value="3" required />
+                <input type="number" id="loginClass" min="1" max="20" value="1" required />
               </div>
               <div>
                 <label for="loginNumber">번호</label>
-                <input type="number" id="loginNumber" min="1" max="50" value="7" required />
+                <input type="number" id="loginNumber" min="1" max="50" value="11" required />
               </div>
             </div>
           </div>
 
           <div class="quick-student-presets">
             <span class="preset-label">⚡ 예시 학생 터치:</span>
-            <button type="button" class="preset-chip" data-grade="2" data-class="3" data-num="7" data-name="김민준">20307 김민준</button>
-            <button type="button" class="preset-chip" data-grade="1" data-class="1" data-num="12" data-name="이서연">10112 이서연</button>
-            <button type="button" class="preset-chip" data-grade="3" data-class="2" data-num="19" data-name="박지호">30219 박지호</button>
+            <button type="button" class="preset-chip" data-code="1111" data-grade="1" data-class="1" data-num="11" data-name="김양주">1111 김양주</button>
           </div>
 
           <button type="submit" id="studentLoginSubmitBtn" class="btn-save-main btn-full">
@@ -837,7 +874,7 @@
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   </div>
 
-  <script src="firebase-config.js?v=20261022_roster"></script>
-  <script src="app.js?v=20261022_roster"></script>
+  <script src="firebase-config.js?v=20261022_preset"></script>
+  <script src="app.js?v=20261022_preset"></script>
 </body>
 </html>

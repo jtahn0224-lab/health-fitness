@@ -17,10 +17,10 @@ let teacherPassword = loadTeacherPassword();
 const INITIAL_DEMO_DATA = {
   student1: {
     id: "student1",
-    grade: 2,
-    classNum: 3,
-    studentNum: 7,
-    name: "김민준",
+    grade: 1,
+    classNum: 1,
+    studentNum: 11,
+    name: "김양주",
     records: {
       "2026-10-02": { run: 3, jump: 200, mood: "💦 숨차지만 완주!", note: "체력교실 첫날 완주!" },
       "2026-10-05": { run: 5, jump: 300, mood: "😄 상쾌해요", note: "목표 첫 100% 달성!" },
@@ -29,10 +29,36 @@ const INITIAL_DEMO_DATA = {
       "2026-10-12": { run: 6, jump: 300, mood: "💪 뿌듯해요", note: "달리기 6바퀴 신기록!" },
       "2026-10-14": { run: 3, jump: 150, mood: "💦 숨차지만 완주!", note: "조금 피곤했지만 출석" },
       "2026-10-15": { run: 5, jump: 400, mood: "😄 상쾌해요", note: "줄넘기 400개 돌파!" },
-      "2026-10-19": { run: 5, jump: 300, mood: "😄 상쾌해요", note: "월요일 아침 상쾌하게" },
-      "2026-10-20": { run: 4, jump: 300, mood: "💪 뿌듯해요", note: "줄넘기 100개 연속 성공" },
-      "2026-10-21": { run: 5, jump: 320, mood: "😄 상쾌해요", note: "3일 연속 참여 중!" },
-      "2026-10-22": { run: 5, jump: 350, mood: "😄 상쾌해요", note: "오늘도 목표 완주!" }
+      "2026-10-19": {
+        morning: { run: 3, jump: 150, mood: "😄 상쾌해요", note: "월요일 아침 상쾌하게" },
+        lunch: { run: 2, jump: 150, mood: "💪 뿌듯해요", note: "점심 줄넘기 추가" },
+        run: 5,
+        jump: 300,
+        mood: "😄 상쾌해요",
+        note: "[아침] 월요일 아침 상쾌하게 / [점심] 점심 줄넘기 추가"
+      },
+      "2026-10-20": {
+        lunch: { run: 4, jump: 300, mood: "💪 뿌듯해요", note: "점심시간 줄넘기 100개 연속 성공" },
+        run: 4,
+        jump: 300,
+        mood: "💪 뿌듯해요",
+        note: "[점심] 점심시간 줄넘기 100개 연속 성공"
+      },
+      "2026-10-21": {
+        morning: { run: 5, jump: 320, mood: "😄 상쾌해요", note: "아침 체력교실 3일 연속 참여!" },
+        run: 5,
+        jump: 320,
+        mood: "😄 상쾌해요",
+        note: "[아침] 아침 체력교실 3일 연속 참여!"
+      },
+      "2026-10-22": {
+        morning: { run: 3, jump: 150, mood: "😄 상쾌해요", note: "아침 트랙 달리기 3바퀴" },
+        lunch: { run: 2, jump: 200, mood: "💪 뿌듯해요", note: "점심시간 친구들과 줄넘기 200개!" },
+        run: 5,
+        jump: 350,
+        mood: "😄 상쾌해요",
+        note: "[아침] 아침 트랙 달리기 3바퀴 / [점심] 점심시간 친구들과 줄넘기 200개!"
+      }
     }
   },
   student2: {
@@ -93,6 +119,7 @@ const INITIAL_DEMO_DATA = {
 let store = loadStore();
 let currentStudentId = Object.keys(store)[0] || "student1";
 let currentDateStr = TODAY_STR;
+let currentSession = "morning"; // "morning" (🌅 아침 시간) | "lunch" (☀️ 점심시간)
 let currentCalYear = 2026;
 let currentCalMonth = 10;
 let currentMood = "😄 상쾌해요";
@@ -189,6 +216,134 @@ function isGoalMet(rec) {
 function isParticipated(rec) {
   if (!rec) return false;
   return Number(rec.run) > 0 || Number(rec.jump) > 0;
+}
+
+// 하루 기록 객체를 아침(morning) / 점심(lunch) 구조로 정규화
+function normalizeDayRecord(rec) {
+  const emptySession = { run: 0, jump: 0, mood: "😄 상쾌해요", note: "" };
+  if (!rec) {
+    return {
+      morning: { ...emptySession },
+      lunch: { ...emptySession },
+      run: 0,
+      jump: 0,
+      mood: "😄 상쾌해요",
+      note: ""
+    };
+  }
+
+  let morning = rec.morning ? { ...emptySession, ...rec.morning } : null;
+  let lunch = rec.lunch ? { ...emptySession, ...rec.lunch } : null;
+
+  // 기존 단일 기록 데이터 호환 처리
+  if (!morning && !lunch) {
+    const rawNote = String(rec.note || "");
+    if (rawNote.includes("점심")) {
+      morning = { ...emptySession };
+      lunch = {
+        run: Number(rec.run || 0),
+        jump: Number(rec.jump || 0),
+        mood: rec.mood || "😄 상쾌해요",
+        note: rawNote
+      };
+    } else {
+      morning = {
+        run: Number(rec.run || 0),
+        jump: Number(rec.jump || 0),
+        mood: rec.mood || "😄 상쾌해요",
+        note: rawNote
+      };
+      lunch = { ...emptySession };
+    }
+  } else {
+    if (!morning) morning = { ...emptySession };
+    if (!lunch) lunch = { ...emptySession };
+  }
+
+  morning.run = Number(morning.run || 0);
+  morning.jump = Number(morning.jump || 0);
+  lunch.run = Number(lunch.run || 0);
+  lunch.jump = Number(lunch.jump || 0);
+
+  const totalRun = Number((morning.run + lunch.run).toFixed(1));
+  const totalJump = Math.round(morning.jump + lunch.jump);
+  const hasM = morning.run > 0 || morning.jump > 0;
+  const hasL = lunch.run > 0 || lunch.jump > 0;
+
+  const noteParts = [];
+  if (hasM && morning.note) noteParts.push(`[아침운동] ${morning.note}`);
+  if (hasL && lunch.note) noteParts.push(`[점심운동] ${lunch.note}`);
+  const combinedNote = noteParts.length > 0 ? noteParts.join(" / ") : rec.note || "";
+  const combinedMood = hasL ? lunch.mood : hasM ? morning.mood : rec.mood || "😄 상쾌해요";
+
+  return {
+    morning,
+    lunch,
+    run: totalRun,
+    jump: totalJump,
+    mood: combinedMood,
+    note: combinedNote
+  };
+}
+
+function getSessionTagsHtml(rec) {
+  const norm = normalizeDayRecord(rec);
+  const hasM = isParticipated(norm.morning);
+  const hasL = isParticipated(norm.lunch);
+  let tags = "";
+  if (hasM) tags += `<span class="session-tag morning">🌅 아침운동 완료</span> `;
+  if (hasL) tags += `<span class="session-tag lunch">☀️ 점심운동 완료</span>`;
+  return tags.trim();
+}
+
+function buildSessionDetailStackHtml(rec, includePending = false) {
+  const norm = normalizeDayRecord(rec);
+  const hasM = isParticipated(norm.morning);
+  const hasL = isParticipated(norm.lunch);
+  let html = `<div class="session-detail-stack">`;
+
+  if (hasM || includePending) {
+    html += `
+      <div class="session-detail-box ${hasM ? "morning-done" : "pending"}">
+        <div class="session-detail-top">
+          <span class="session-detail-badge">
+            ${hasM ? "🌅 ✅ 아침운동 완료!" : "🌅 아침운동 미기록"}
+          </span>
+          <span class="session-detail-metrics">
+            ${hasM ? `🏃 달리기 ${norm.morning.run}바퀴 · 🪢 줄넘기 ${norm.morning.jump.toLocaleString()}개` : "기록 없음"}
+          </span>
+        </div>
+        ${
+          hasM
+            ? `<div class="session-detail-note">${escapeHtml(norm.morning.mood || "😄 상쾌해요")} · 💬 ${escapeHtml(norm.morning.note || "아침운동 완료!")}</div>`
+            : ""
+        }
+      </div>
+    `;
+  }
+
+  if (hasL || includePending) {
+    html += `
+      <div class="session-detail-box ${hasL ? "lunch-done" : "pending"}">
+        <div class="session-detail-top">
+          <span class="session-detail-badge">
+            ${hasL ? "☀️ ✅ 점심운동 완료!" : "☀️ 점심운동 미기록"}
+          </span>
+          <span class="session-detail-metrics">
+            ${hasL ? `🏃 달리기 ${norm.lunch.run}바퀴 · 🪢 줄넘기 ${norm.lunch.jump.toLocaleString()}개` : "기록 없음"}
+          </span>
+        </div>
+        ${
+          hasL
+            ? `<div class="session-detail-note">${escapeHtml(norm.lunch.mood || "😄 상쾌해요")} · 💬 ${escapeHtml(norm.lunch.note || "점심운동 완료!")}</div>`
+            : ""
+        }
+      </div>
+    `;
+  }
+
+  html += `</div>`;
+  return html;
 }
 
 // ============================================================================
@@ -357,7 +512,11 @@ function initLoginModal() {
       classInput.value = chip.dataset.class;
       numInput.value = chip.dataset.num;
       nameInput.value = chip.dataset.name;
-      syncCodeFromFields();
+      if (chip.dataset.code) {
+        codeInput.value = chip.dataset.code;
+      } else {
+        syncCodeFromFields();
+      }
     });
   });
 
@@ -582,12 +741,14 @@ function initStudentSelector() {
 }
 
 // ============================================================================
-// [탭 1] 오늘 운동 기록하기
+// [탭 1] 오늘 운동 기록하기 (🌅 아침 시간 / ☀️ 점심시간 구분 기록)
 // ============================================================================
 function initRecordForm() {
   const dateInput = document.getElementById("recordDate");
   const runInput = document.getElementById("runCount");
   const jumpInput = document.getElementById("jumpCount");
+  const btnMorning = document.getElementById("sessionBtnMorning");
+  const btnLunch = document.getElementById("sessionBtnLunch");
 
   dateInput.value = currentDateStr;
   dateInput.addEventListener("change", (e) => {
@@ -607,6 +768,17 @@ function initRecordForm() {
     currentCalMonth = 10;
     loadDateIntoForm(TODAY_STR);
   });
+
+  if (btnMorning && btnLunch) {
+    btnMorning.addEventListener("click", () => {
+      currentSession = "morning";
+      loadDateIntoForm(currentDateStr);
+    });
+    btnLunch.addEventListener("click", () => {
+      currentSession = "lunch";
+      loadDateIntoForm(currentDateStr);
+    });
+  }
 
   runInput.addEventListener("input", updateProgressBars);
   jumpInput.addEventListener("input", updateProgressBars);
@@ -642,76 +814,191 @@ function initRecordForm() {
     const runVal = Math.max(0, Math.min(500, Number(runInput.value || 0)));
     const jumpVal = Math.max(0, Math.min(50000, Math.round(Number(jumpInput.value || 0))));
     const noteVal = document.getElementById("recordNote").value.trim().slice(0, 100);
+    const sessionLabel = currentSession === "lunch" ? "☀️ 점심시간" : "🌅 아침 시간";
 
     if (runVal === 0 && jumpVal === 0) {
-      showToast("달리기나 줄넘기를 1 이상 입력해 주세요!");
+      showToast(`${sessionLabel}의 달리기나 줄넘기를 1 이상 입력해 주세요!`);
       return;
     }
-
-    const recordObj = {
-      run: runVal,
-      jump: jumpVal,
-      mood: currentMood,
-      note: noteVal || "운동 참여 완료!"
-    };
 
     if (!store[currentStudentId].records) {
       store[currentStudentId].records = {};
     }
-    store[currentStudentId].records[currentDateStr] = recordObj;
+
+    const norm = normalizeDayRecord(store[currentStudentId].records[currentDateStr]);
+    norm[currentSession] = {
+      run: runVal,
+      jump: jumpVal,
+      mood: currentMood,
+      note: noteVal || `${sessionLabel} 운동 완료!`
+    };
+
+    const updatedDayObj = normalizeDayRecord(norm);
+    store[currentStudentId].records[currentDateStr] = updatedDayObj;
     saveStore();
     syncAllUI();
 
     if (fbState.connected) {
-      await syncRecordToFirestore(currentStudentId, currentDateStr, recordObj);
-      showToast(`☁️ ${currentDateStr.slice(5)} 기록 클라우드 저장 완료!`);
+      await syncRecordToFirestore(currentStudentId, currentDateStr, updatedDayObj);
+      showToast(`☁️ ${currentDateStr.slice(5)} [${sessionLabel}] 클라우드 저장 완료!`);
     } else {
-      showToast(`🎉 ${currentDateStr.slice(5)} 운동 기록 저장 완료!`);
+      showToast(`🎉 ${currentDateStr.slice(5)} [${sessionLabel}] 운동 기록 저장 완료!`);
     }
   });
 
   document.getElementById("deleteRecordBtn").addEventListener("click", async () => {
     const records = getStudentRecords();
-    if (records[currentDateStr]) {
+    if (!records[currentDateStr]) return;
+
+    const sessionLabel = currentSession === "lunch" ? "☀️ 점심시간" : "🌅 아침 시간";
+    const norm = normalizeDayRecord(records[currentDateStr]);
+    norm[currentSession] = { run: 0, jump: 0, mood: "😄 상쾌해요", note: "" };
+    const updatedDayObj = normalizeDayRecord(norm);
+
+    if (!isParticipated(updatedDayObj)) {
       delete records[currentDateStr];
       saveStore();
       syncAllUI();
       if (fbState.connected) {
         await deleteRecordFromFirestore(currentStudentId, currentDateStr);
       }
-      showToast(`${currentDateStr.slice(5)} 기록이 삭제되었습니다.`);
+    } else {
+      records[currentDateStr] = updatedDayObj;
+      saveStore();
+      syncAllUI();
+      if (fbState.connected) {
+        await syncRecordToFirestore(currentStudentId, currentDateStr, updatedDayObj);
+      }
     }
+    showToast(`${currentDateStr.slice(5)} [${sessionLabel}] 기록이 삭제되었습니다.`);
   });
 }
 
 function loadDateIntoForm(dateStr) {
   const records = getStudentRecords();
-  const rec = records[dateStr];
+  const rawRec = records[dateStr];
+  const norm = normalizeDayRecord(rawRec);
+  const sessRec = norm[currentSession] || { run: 0, jump: 0, mood: "😄 상쾌해요", note: "" };
 
   document.getElementById("recordDate").value = dateStr;
-  document.getElementById("runCount").value = rec ? rec.run : 0;
-  document.getElementById("jumpCount").value = rec ? rec.jump : 0;
-  document.getElementById("recordNote").value = rec ? rec.note : "";
+  document.getElementById("runCount").value = sessRec.run || 0;
+  document.getElementById("jumpCount").value = sessRec.jump || 0;
+  document.getElementById("recordNote").value = sessRec.note || "";
 
-  currentMood = rec?.mood || "😄 상쾌해요";
+  currentMood = sessRec.mood || "😄 상쾌해요";
   document.querySelectorAll(".mood-btn").forEach((b) =>
     b.classList.toggle("active", b.dataset.mood === currentMood)
   );
 
+  const hasM = isParticipated(norm.morning);
+  const hasL = isParticipated(norm.lunch);
+
+  // 아침 / 점심 완료 뱃지 및 요약 텍스트 갱신
+  const btnMorning = document.getElementById("sessionBtnMorning");
+  const btnLunch = document.getElementById("sessionBtnLunch");
+  const badgeMorning = document.getElementById("sessionBadgeMorning");
+  const badgeLunch = document.getElementById("sessionBadgeLunch");
+  const sumMorning = document.getElementById("sessionSummaryMorning");
+  const sumLunch = document.getElementById("sessionSummaryLunch");
+  const noteMorning = document.getElementById("sessionNoteMorning");
+  const noteLunch = document.getElementById("sessionNoteLunch");
+  const morningDonePill = document.getElementById("morningDonePill");
+  const lunchDonePill = document.getElementById("lunchDonePill");
+  const activeBanner = document.getElementById("activeSessionBanner");
+  const dailyTotalEl = document.getElementById("sessionDailyTotalText");
+  const saveMainBtn = document.getElementById("saveRecordMainBtn");
+
+  if (btnMorning && btnLunch) {
+    btnMorning.classList.toggle("active", currentSession === "morning");
+    btnLunch.classList.toggle("active", currentSession === "lunch");
+    btnMorning.classList.toggle("is-done", hasM);
+    btnLunch.classList.toggle("is-done", hasL);
+  }
+
+  if (morningDonePill) {
+    morningDonePill.textContent = hasM ? "🌅 ✅ 아침운동 완료!" : "🌅 아침운동 미기록";
+    morningDonePill.className = hasM ? "session-top-pill done-morning" : "session-top-pill pending";
+  }
+  if (lunchDonePill) {
+    lunchDonePill.textContent = hasL ? "☀️ ✅ 점심운동 완료!" : "☀️ 점심운동 미기록";
+    lunchDonePill.className = hasL ? "session-top-pill done-lunch" : "session-top-pill pending";
+  }
+
+  if (badgeMorning) {
+    badgeMorning.textContent = hasM ? "✅ 아침운동 완료" : "미기록";
+    badgeMorning.className = hasM ? "session-state-badge done" : "session-state-badge";
+  }
+  if (badgeLunch) {
+    badgeLunch.textContent = hasL ? "✅ 점심운동 완료" : "미기록";
+    badgeLunch.className = hasL ? "session-state-badge done" : "session-state-badge";
+  }
+
+  if (sumMorning) {
+    sumMorning.textContent = hasM
+      ? `🏃 달리기 ${norm.morning.run}바퀴 · 🪢 줄넘기 ${norm.morning.jump.toLocaleString()}개`
+      : "아침운동 기록 전";
+  }
+  if (sumLunch) {
+    sumLunch.textContent = hasL
+      ? `🏃 달리기 ${norm.lunch.run}바퀴 · 🪢 줄넘기 ${norm.lunch.jump.toLocaleString()}개`
+      : "점심운동 기록 전";
+  }
+
+  if (noteMorning) {
+    noteMorning.textContent = hasM
+      ? `💬 ${norm.morning.note || "아침운동 완료!"} (${norm.morning.mood || "😄 상쾌해요"})`
+      : "클릭하여 아침 시간 운동을 입력해 보세요";
+  }
+  if (noteLunch) {
+    noteLunch.textContent = hasL
+      ? `💬 ${norm.lunch.note || "점심운동 완료!"} (${norm.lunch.mood || "😄 상쾌해요"})`
+      : "클릭하여 점심시간 운동을 입력해 보세요";
+  }
+
+  if (activeBanner) {
+    if (currentSession === "morning") {
+      activeBanner.className = "active-session-banner morning";
+      activeBanner.innerHTML = hasM
+        ? `<span>🌅 현재 <strong>[아침운동]</strong> 선택됨</span><span>✅ 아침운동 완료됨 (수정 가능)</span>`
+        : `<span>🌅 현재 <strong>[아침운동]</strong> 입력 중입니다</span><span>운동량을 입력 후 아래 저장 버튼을 눌러주세요</span>`;
+    } else {
+      activeBanner.className = "active-session-banner lunch";
+      activeBanner.innerHTML = hasL
+        ? `<span>☀️ 현재 <strong>[점심운동]</strong> 선택됨</span><span>✅ 점심운동 완료됨 (수정 가능)</span>`
+        : `<span>☀️ 현재 <strong>[점심운동]</strong> 입력 중입니다</span><span>운동량을 입력 후 아래 저장 버튼을 눌러주세요</span>`;
+    }
+  }
+
+  if (dailyTotalEl) {
+    dailyTotalEl.textContent = `🏃 총 ${norm.run}바퀴 · 🪢 총 ${norm.jump.toLocaleString()}개`;
+  }
+  if (saveMainBtn) {
+    saveMainBtn.textContent =
+      currentSession === "lunch"
+        ? "💾 ☀️ 점심운동 완료 저장하기"
+        : "💾 🌅 아침운동 완료 저장하기";
+  }
+
   const badge = document.getElementById("recordStatusBadge");
   const deleteBtn = document.getElementById("deleteRecordBtn");
 
-  if (rec && isParticipated(rec)) {
-    deleteBtn.hidden = false;
-    if (isGoalMet(rec)) {
-      badge.textContent = "⭐ 목표 달성";
+  deleteBtn.hidden = !isParticipated(sessRec);
+
+  if (isParticipated(norm)) {
+    const doneLabel =
+      hasM && hasL
+        ? "🌅아침·☀️점심 모두 완료!"
+        : hasM
+        ? "🌅 아침운동 완료"
+        : "☀️ 점심운동 완료";
+    if (isGoalMet(norm)) {
+      badge.textContent = `⭐ 목표달성 (${doneLabel})`;
       badge.className = "status-badge gold";
     } else {
-      badge.textContent = "✅ 참여 완료";
+      badge.textContent = `✅ ${doneLabel}`;
       badge.className = "status-badge done";
     }
   } else {
-    deleteBtn.hidden = true;
     badge.textContent = "미기록";
     badge.className = "status-badge";
   }
@@ -884,18 +1171,23 @@ function renderRecentList() {
 
   listEl.innerHTML = sortedDates
     .map((dateStr) => {
-      const rec = records[dateStr];
-      const stamp = isGoalMet(rec) ? "⭐" : "✅";
+      const norm = normalizeDayRecord(records[dateStr]);
+      const stamp = isGoalMet(norm) ? "⭐ 목표달성" : "✅ 참여완료";
+      const sessionBadges = getSessionTagsHtml(norm);
+      const detailStack = buildSessionDetailStackHtml(norm, false);
       return `
         <li class="recent-item" data-date="${dateStr}">
-          <div>
-            <div class="recent-date">${stamp} ${dateStr.slice(5)} <small>${escapeHtml(rec.mood || "")}</small></div>
-            <div class="recent-note">${escapeHtml(rec.note || "")}</div>
+          <div class="recent-item-header">
+            <div class="recent-date">
+              <span>📅 ${dateStr.slice(5)} (${stamp})</span>
+              ${sessionBadges}
+            </div>
+            <div class="recent-badges">
+              <span class="pill-run">합산 🏃 ${norm.run}바퀴</span>
+              <span class="pill-jump">합산 🪢 ${norm.jump.toLocaleString()}개</span>
+            </div>
           </div>
-          <div class="recent-badges">
-            <span class="pill-run">🏃 ${rec.run}</span>
-            <span class="pill-jump">🪢 ${rec.jump}</span>
-          </div>
+          ${detailStack}
         </li>
       `;
     })
@@ -964,6 +1256,9 @@ function renderCalendar() {
     if (isSelected) cellClasses += " selected";
 
     const stamp = goalMet ? "⭐" : participated ? "✅" : "";
+    const norm = participated ? normalizeDayRecord(rec) : null;
+    const hasM = norm ? isParticipated(norm.morning) : false;
+    const hasL = norm ? isParticipated(norm.lunch) : false;
 
     html += `
       <button type="button" class="${cellClasses}" data-date="${dateStr}">
@@ -974,8 +1269,11 @@ function renderCalendar() {
         ${
           participated
             ? `<div class="cal-mini-summary">
-                <div>🏃${rec.run}</div>
-                <div>🪢${rec.jump}</div>
+                <div class="cal-session-badges">
+                  ${hasM ? `<span class="cal-sess-pill morning">🌅아침완료</span>` : ""}
+                  ${hasL ? `<span class="cal-sess-pill lunch">☀️점심완료</span>` : ""}
+                </div>
+                <div>🏃${norm.run} · 🪢${norm.jump}</div>
               </div>`
             : `<div class="cal-mini-summary"></div>`
         }
@@ -996,37 +1294,41 @@ function renderCalendar() {
 
 function renderSelectedDayDetail(dateStr) {
   const records = getStudentRecords();
-  const rec = records[dateStr];
+  const rawRec = records[dateStr];
+  const norm = normalizeDayRecord(rawRec);
   const titleEl = document.getElementById("selectedDayTitle");
   const badgeEl = document.getElementById("selectedDayBadge");
   const bodyEl = document.getElementById("selectedDayContent");
 
-  titleEl.textContent = `${dateStr} 기록 상세`;
+  titleEl.textContent = `${dateStr} 기록 상세 (아침·점심)`;
 
-  if (rec && isParticipated(rec)) {
-    const goalMet = isGoalMet(rec);
-    badgeEl.textContent = goalMet ? "⭐ 목표 달성" : "✅ 참여 완료";
+  if (rawRec && isParticipated(norm)) {
+    const goalMet = isGoalMet(norm);
+    const hasM = isParticipated(norm.morning);
+    const hasL = isParticipated(norm.lunch);
+    const doneLabel =
+      hasM && hasL
+        ? "🌅아침·☀️점심 모두 완료"
+        : hasM
+        ? "🌅 아침운동 완료"
+        : "☀️ 점심운동 완료";
+    badgeEl.textContent = goalMet ? `⭐ 목표 달성 (${doneLabel})` : `✅ ${doneLabel}`;
     badgeEl.className = goalMet ? "status-badge gold" : "status-badge done";
 
     bodyEl.innerHTML = `
-      <div class="detail-row">
-        <span>🏃 달리기</span>
-        <strong class="text-run">${rec.run} 바퀴 (목표 ${goals.run}바퀴)</strong>
+      ${buildSessionDetailStackHtml(norm, true)}
+      <div class="detail-row" style="padding-top:8px; margin-top:4px; border-top:1px dashed var(--border); font-size:0.9rem; font-weight:900;">
+        <span>📊 하루 총 합산 운동량</span>
+        <span>
+          <strong class="text-run">🏃 달리기 ${norm.run}바퀴</strong> ·
+          <strong class="text-jump">🪢 줄넘기 ${norm.jump.toLocaleString()}개</strong>
+        </span>
       </div>
-      <div class="detail-row">
-        <span>🪢 줄넘기</span>
-        <strong class="text-jump">${rec.jump} 개 (목표 ${goals.jump}개)</strong>
-      </div>
-      <div class="detail-row">
-        <span>컨디션</span>
-        <strong>${escapeHtml(rec.mood || "-")}</strong>
-      </div>
-      <div class="detail-note">💬 "${escapeHtml(rec.note || "메모 없음")}"</div>
     `;
   } else {
     badgeEl.textContent = "미참여";
     badgeEl.className = "status-badge";
-    bodyEl.innerHTML = `<div style="color:var(--text-muted)">기록된 운동이 없습니다. 아래 버튼으로 기록해 보세요!</div>`;
+    bodyEl.innerHTML = `<div style="color:var(--text-muted)">기록된 아침·점심 운동이 없습니다. 아래 버튼으로 기록해 보세요!</div>`;
   }
 }
 
@@ -1278,8 +1580,9 @@ function renderTeacherDashboard() {
       tbodyEl.innerHTML = filtered
         .map((s, idx) => {
           const st = s.stats;
+          const todayRec = s.records?.[TODAY_STR];
           const todayBadge = st.participatedToday
-            ? `<span class="status-badge done">✅ 완료</span>`
+            ? getSessionTagsHtml(todayRec) || `<span class="status-badge done">✅ 완료</span>`
             : `<span class="status-badge">미기록</span>`;
 
           let weekBadge = `<span class="status-badge done">진행 ${st.weekDays}/${goals.weeklyDays}일</span>`;
@@ -1520,22 +1823,26 @@ function renderTeacherSelectedDayDetail(dateStr, studentsList) {
   } else {
     html += participants
       .map(({ student, rec, goalMet }) => {
-        const badge = goalMet ? "⭐" : "✅";
+        const norm = normalizeDayRecord(rec);
+        const badge = goalMet ? "⭐ 목표달성" : "✅ 참여완료";
+        const sTags = getSessionTagsHtml(norm);
+        const detailStack = buildSessionDetailStackHtml(norm, false);
+
         return `
           <div class="t-day-std-item">
-            <div class="t-day-std-info">
+            <div class="t-day-std-header">
               <div class="t-day-std-title">
                 <span class="student-code-tag">${formatStudentCode(student)}</span>
-                <span>${badge} ${escapeHtml(student.name)}</span>
-                <small style="color:var(--text-muted)">${escapeHtml(rec.mood || "")}</small>
+                <span>${escapeHtml(student.name)} (${badge})</span>
+                ${sTags}
               </div>
-              <div class="t-day-std-note">💬 ${escapeHtml(rec.note || "메모 없음")}</div>
+              <div class="t-day-std-right">
+                <span class="pill-run">합산 🏃 ${norm.run}바퀴</span>
+                <span class="pill-jump">합산 🪢 ${norm.jump.toLocaleString()}개</span>
+                <button type="button" class="btn-table edit-day-std-btn" data-id="${student.id}" data-date="${dateStr}">✏️ 수정</button>
+              </div>
             </div>
-            <div class="t-day-std-right">
-              <span class="pill-run">🏃 ${rec.run}</span>
-              <span class="pill-jump">🪢 ${rec.jump}</span>
-              <button type="button" class="btn-table edit-day-std-btn" data-id="${student.id}" data-date="${dateStr}">수정</button>
-            </div>
+            ${detailStack}
           </div>
         `;
       })
@@ -1933,11 +2240,14 @@ async function syncRecordToFirestore(studentId, dateStr, rec) {
   if (store[studentId]) {
     await syncStudentDocToFirestore(studentId, store[studentId]);
   }
+  const norm = normalizeDayRecord(rec);
   await set(ref(fbState.db, `fitnessClassroom/students/${studentId}/records/${dateStr}`), {
-    run: Number(rec.run),
-    jump: Math.round(Number(rec.jump)),
-    mood: String(rec.mood || "😄 상쾌해요").slice(0, 30),
-    note: String(rec.note || "").slice(0, 100),
+    morning: norm.morning,
+    lunch: norm.lunch,
+    run: Number(norm.run),
+    jump: Math.round(Number(norm.jump)),
+    mood: String(norm.mood || "😄 상쾌해요").slice(0, 30),
+    note: String(norm.note || "").slice(0, 100),
     updatedBy: fbState.uid,
     updatedAt: Date.now()
   });
