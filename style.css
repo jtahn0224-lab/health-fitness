@@ -126,22 +126,72 @@ body {
   letter-spacing: -0.02em;
 }
 
-.student-selector {
+/* 상단 로그인 정보 및 전환 바 */
+.auth-status-bar {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
 
+.user-role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 13px;
+  border-radius: 10px;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.user-role-badge.student {
+  background: var(--primary-soft);
+  color: var(--primary);
+  border: 1px solid #bfdbfe;
+}
+
+.user-role-badge.teacher {
+  background: var(--teacher-soft);
+  color: var(--teacher-accent);
+  border: 1px solid #c7d2fe;
+}
+
+.btn-auth-switch {
+  background: var(--text);
+  color: #fff;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.btn-auth-switch:hover {
+  opacity: 0.9;
+}
+
+.student-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.student-selector[hidden] {
+  display: none !important;
+}
+
 .selector-label {
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   font-weight: 700;
   color: var(--text-muted);
 }
 
 .student-selector select,
 .teacher-filters select,
-.inline-form select {
+.inline-form select,
+.login-student-grid select {
   padding: 9px 12px;
   border-radius: 10px;
   border: 1px solid var(--border);
@@ -150,6 +200,7 @@ body {
   font-size: 0.9rem;
   color: var(--text);
   cursor: pointer;
+  width: 100%;
 }
 
 /* 상단 통계 요약 */
@@ -298,7 +349,8 @@ body {
 
 .form-group label,
 .inline-form label,
-.fb-grid-inputs label {
+.fb-grid-inputs label,
+.login-student-grid label {
   display: block;
   font-size: 0.85rem;
   font-weight: 700;
@@ -314,6 +366,7 @@ input[type="date"],
 input[type="text"],
 input[type="number"],
 input[type="search"],
+input[type="password"],
 textarea {
   width: 100%;
   padding: 10px 13px;
@@ -498,6 +551,14 @@ select:focus {
 
 .btn-primary:hover {
   background: var(--primary-hover);
+}
+
+.teacher-submit-btn {
+  background: var(--teacher-accent);
+}
+
+.teacher-submit-btn:hover {
+  background: #4338ca;
 }
 
 .btn-secondary {
@@ -902,8 +963,12 @@ select:focus {
   flex: 1;
 }
 
+.teacher-filters select {
+  width: auto;
+}
+
 .teacher-filters input[type="search"] {
-  max-width: 220px;
+  max-width: 210px;
 }
 
 .teacher-actions {
@@ -969,6 +1034,17 @@ select:focus {
 
 .teacher-table tbody tr:hover {
   background: #f8fafc;
+}
+
+.student-code-tag {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  margin-right: 6px;
 }
 
 .mini-progress-wrap {
@@ -1066,17 +1142,18 @@ select:focus {
 }
 
 /* ============================================================================
-   Firebase 설정 모달
+   로그인 모달 & Firebase 설정 모달
    ============================================================================ */
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.55);
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(3px);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 16px;
-  z-index: 90;
+  z-index: 95;
 }
 
 .modal-backdrop[hidden] {
@@ -1086,13 +1163,106 @@ select:focus {
 .modal-card {
   background: var(--surface);
   border-radius: var(--radius-lg);
-  max-width: 620px;
+  max-width: 600px;
   width: 100%;
   padding: 24px;
   box-shadow: 0 20px 45px rgba(15, 23, 42, 0.25);
   border: 1px solid var(--border);
   max-height: 92vh;
   overflow-y: auto;
+}
+
+.login-modal-card {
+  max-width: 520px;
+}
+
+.login-mode-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  background: var(--surface-soft);
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  margin-bottom: 18px;
+}
+
+.login-mode-btn {
+  padding: 10px 12px;
+  border-radius: 9px;
+  border: none;
+  background: transparent;
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.login-mode-btn.active {
+  background: var(--surface);
+  color: var(--primary);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+#modeBtnTeacher.active {
+  color: var(--teacher-accent);
+}
+
+.login-student-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.quick-student-presets {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: var(--surface-soft);
+  border-radius: 10px;
+  border: 1px dashed var(--border);
+}
+
+.preset-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.preset-chip {
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #fff;
+  cursor: pointer;
+}
+
+.preset-chip:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.pw-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.login-error-msg {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--danger-soft);
+  color: #b91c1c;
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-bottom: 10px;
 }
 
 .modal-desc {
@@ -1163,7 +1333,8 @@ select:focus {
     grid-template-columns: repeat(7, 1fr);
     height: auto;
   }
-  .fb-grid-inputs {
+  .fb-grid-inputs,
+  .login-student-grid {
     grid-template-columns: 1fr;
   }
 }

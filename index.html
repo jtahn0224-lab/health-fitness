@@ -8,7 +8,7 @@
 </head>
 <body>
   <div class="app-container">
-    <!-- 상단 헤더 & 클라우드 상태 & 학생 선택 -->
+    <!-- 상단 헤더 & 로그인 사용자 정보 & 클라우드 상태 -->
     <header class="app-header">
       <div class="header-top">
         <div class="brand">
@@ -22,9 +22,21 @@
           <h1>오늘도 한 걸음! 체력 UP 기록 & 관리 시스템</h1>
         </div>
 
-        <div class="student-selector">
-          <label for="studentSelect" class="selector-label">현재 선택 학생:</label>
-          <select id="studentSelect" aria-label="학생 선택"></select>
+        <!-- 현재 로그인 상태 & 사용자 전환 영역 -->
+        <div class="auth-status-bar">
+          <div id="currentUserBadge" class="user-role-badge student">
+            🎒 2학년 3반 7번 김민준 (20307)
+          </div>
+
+          <!-- 교사 모드일 때만 노출되는 학생 선택 드롭다운 -->
+          <div id="teacherStudentSwitcher" class="student-selector" hidden>
+            <label for="studentSelect" class="selector-label">학생 조회:</label>
+            <select id="studentSelect" aria-label="학생 선택"></select>
+          </div>
+
+          <button type="button" id="openLoginModalBtn" class="btn-auth-switch">
+            🔐 로그인 / 계정 전환
+          </button>
           <button type="button" id="resetDemoBtn" class="btn-ghost" title="예시 데이터 초기화">
             예시 초기화
           </button>
@@ -32,11 +44,11 @@
       </div>
 
       <!-- 선택된 학생 핵심 요약 배너 -->
-      <section class="summary-strip" aria-label="선택 학생 이번 달 참여 요약">
+      <section class="summary-strip" aria-label="이번 달 참여 요약">
         <div class="stat-pill">
           <span class="stat-icon">🗓️</span>
           <div>
-            <span class="stat-label">선택 학생 이번 달 참여</span>
+            <span class="stat-label" id="summaryStudentLabel">이번 달 참여</span>
             <strong id="statDays">0일</strong>
           </div>
         </div>
@@ -74,7 +86,7 @@
           class="tab-btn active"
           data-tab="record"
         >
-          ✍️ 학생 운동 기록하기
+          ✍️ 내 운동 기록하기
         </button>
         <button
           type="button"
@@ -96,7 +108,7 @@
           class="tab-btn teacher-tab-btn"
           data-tab="teacher"
         >
-          👩‍🏫 교사용 학급 관리·통계
+          👩‍🏫 교사용 학급 관리·통계 <span id="teacherLockIcon">🔒</span>
         </button>
       </nav>
     </header>
@@ -335,7 +347,7 @@
           </div>
         </div>
 
-        <!-- 교사 컨트롤 바: 학생 추가 / 목표 설정 / CSV 다운로드 -->
+        <!-- 교사 컨트롤 바: 학생 추가 / 목표 설정 / 비밀번호 변경 / CSV 다운로드 -->
         <div class="card teacher-toolbar-card">
           <div class="teacher-filters">
             <select id="filterGrade" aria-label="학년 필터">
@@ -349,12 +361,12 @@
               <option value="daysAsc">참여일 적은 순 (독려 대상 우선)</option>
               <option value="runDesc">달리기 누적 순</option>
               <option value="jumpDesc">줄넘기 누적 순</option>
-              <option value="nameAsc">학년·반·이름 순</option>
+              <option value="nameAsc">학년·학번·이름 순</option>
             </select>
             <input
               type="search"
               id="studentSearchInput"
-              placeholder="학생 이름 또는 반 검색..."
+              placeholder="학번 또는 이름 검색..."
               aria-label="학생 검색"
             />
           </div>
@@ -364,7 +376,10 @@
               ➕ 신규 학생 등록
             </button>
             <button type="button" id="openGoalConfigBtn" class="btn-secondary btn-sm">
-              🎯 일일 목표 기준 설정
+              🎯 일일 목표 설정
+            </button>
+            <button type="button" id="openPwChangeBtn" class="btn-secondary btn-sm">
+              🔑 교사 비밀번호 변경
             </button>
             <button type="button" id="exportCsvBtn" class="btn-secondary btn-sm">
               📥 엑셀(CSV) 내보내기
@@ -426,6 +441,23 @@
           </form>
         </div>
 
+        <!-- 교사 비밀번호 변경 인라인 패널 (토글) -->
+        <div id="pwChangePanel" class="card collapsible-card" hidden>
+          <div class="card-header">
+            <h3>🔑 교사용 관리자 비밀번호 변경</h3>
+            <button type="button" id="closePwChangeBtn" class="btn-ghost">닫기 ✕</button>
+          </div>
+          <form id="pwChangeForm" class="inline-form">
+            <div class="grow">
+              <label for="newTeacherPw">새 교사 비밀번호 입력</label>
+              <input type="password" id="newTeacherPw" placeholder="새 비밀번호 (4자리 이상 권장)" required />
+            </div>
+            <div class="form-end">
+              <button type="submit" class="btn-primary">비밀번호 저장</button>
+            </div>
+          </form>
+        </div>
+
         <!-- 학생별 비교 테이블 & 일자별 학급 참여 차트 -->
         <div class="teacher-content-grid">
           <div class="card">
@@ -437,7 +469,7 @@
               <table class="teacher-table">
                 <thead>
                   <tr>
-                    <th>학생 정보</th>
+                    <th>학번 · 이름</th>
                     <th>참여일수 (출석률)</th>
                     <th>⭐ 완주</th>
                     <th>🔥 연속</th>
@@ -453,7 +485,6 @@
             </div>
           </div>
 
-          <!-- 일자별 학급 참여 인원 추이 & 종목 달성 비교 -->
           <div class="card">
             <div class="card-header">
               <h2>📊 일자별 참여 학생 수 추이 (최근 14일)</h2>
@@ -465,7 +496,122 @@
       </section>
     </main>
 
-    <!-- Firebase 클라우드 설정 모달 -->
+    <!-- ======================================================================
+         🔐 로그인 모달 (학생 학년·학번·이름 로그인 / 교사 비밀번호 로그인)
+         ====================================================================== -->
+    <div id="loginModal" class="modal-backdrop">
+      <div class="modal-card login-modal-card" role="dialog" aria-modal="true" aria-labelledby="loginModalTitle">
+        <div class="card-header">
+          <div>
+            <span class="brand-badge">중학교 건강체력교실</span>
+            <h2 id="loginModalTitle">🔐 로그인 방식을 선택해 주세요</h2>
+          </div>
+          <button type="button" id="closeLoginModalBtn" class="btn-ghost">닫기 ✕</button>
+        </div>
+
+        <!-- 학생 / 교사 로그인 전환 탭 -->
+        <div class="login-mode-tabs">
+          <button type="button" id="modeBtnStudent" class="login-mode-btn active">
+            🎒 학생 로그인 (학년·학번·이름)
+          </button>
+          <button type="button" id="modeBtnTeacher" class="login-mode-btn">
+            👩‍🏫 교사 로그인 (비밀번호)
+          </button>
+        </div>
+
+        <!-- [1] 학생 로그인 폼 -->
+        <form id="studentLoginForm" class="login-form-body">
+          <p class="modal-desc">
+            본인의 <strong>학년, 학번(또는 반·번호), 이름</strong>을 입력하면 내 운동 기록장과 참여 달력이 열립니다. (처음 접속한 학생도 자동으로 등록됩니다!)
+          </p>
+
+          <div class="form-group">
+            <label for="loginStudentCode">학번 빠른 입력 (선택 · 5자리 예: <code>20307</code> → 2학년 3반 7번 자동 입력)</label>
+            <input
+              type="text"
+              id="loginStudentCode"
+              maxlength="5"
+              inputmode="numeric"
+              placeholder="예: 20307 (입력 시 아래 학년·반·번호가 자동으로 채워집니다)"
+            />
+          </div>
+
+          <div class="login-student-grid">
+            <div>
+              <label for="loginGrade">학년 *</label>
+              <select id="loginGrade" required>
+                <option value="1">1학년</option>
+                <option value="2" selected>2학년</option>
+                <option value="3">3학년</option>
+              </select>
+            </div>
+            <div>
+              <label for="loginClass">반 *</label>
+              <input type="number" id="loginClass" min="1" max="20" value="3" placeholder="반" required />
+            </div>
+            <div>
+              <label for="loginNumber">번호 *</label>
+              <input type="number" id="loginNumber" min="1" max="50" value="7" placeholder="번호" required />
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-top: 12px;">
+            <label for="loginName">학생 이름 *</label>
+            <input
+              type="text"
+              id="loginName"
+              value="김민준"
+              maxlength="20"
+              placeholder="이름을 입력하세요 (예: 김민준)"
+              required
+            />
+          </div>
+
+          <!-- 빠른 체험용 예시 학생 클릭 버튼 -->
+          <div class="quick-student-presets">
+            <span class="preset-label">⚡ 예시 학생 빠른 선택:</span>
+            <button type="button" class="preset-chip" data-grade="2" data-class="3" data-num="7" data-name="김민준">20307 김민준</button>
+            <button type="button" class="preset-chip" data-grade="1" data-class="1" data-num="12" data-name="이서연">10112 이서연</button>
+            <button type="button" class="preset-chip" data-grade="3" data-class="2" data-num="19" data-name="박지호">30219 박지호</button>
+            <button type="button" class="preset-chip" data-grade="2" data-class="1" data-num="4" data-name="최하은">20104 최하은</button>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn-primary">🎒 학생으로 시작하기</button>
+          </div>
+        </form>
+
+        <!-- [2] 교사 비밀번호 로그인 폼 -->
+        <form id="teacherLoginForm" class="login-form-body" hidden>
+          <p class="modal-desc">
+            선생님 전용 비밀번호를 입력하면 <strong>전체 학생 관리·통계 대시보드</strong>와 <strong>학생별 기록 조회/수정 권한</strong>이 활성화됩니다.
+          </p>
+
+          <div class="form-group">
+            <label for="loginTeacherPw">교사용 비밀번호 *</label>
+            <input
+              type="password"
+              id="loginTeacherPw"
+              placeholder="비밀번호를 입력하세요 (초기 비밀번호: 1234)"
+              required
+            />
+            <small class="pw-hint">💡 초기 비밀번호는 <strong>1234</strong> 입니다. 로그인 후 [교사 비밀번호 변경]에서 변경할 수 있습니다.</small>
+          </div>
+
+          <div id="teacherLoginError" class="login-error-msg" hidden>
+            ❌ 비밀번호가 일치하지 않습니다. 다시 확인해 주세요.
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn-primary teacher-submit-btn">👩‍🏫 교사 관리자로 로그인</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ======================================================================
+         ☁️ Firebase 클라우드 설정 모달
+         ====================================================================== -->
     <div id="firebaseModal" class="modal-backdrop" hidden>
       <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="fbModalTitle">
         <div class="card-header">
@@ -488,7 +634,7 @@
             <label for="fbJsonInput">firebaseConfig JSON 한 번에 붙여넣기 (또는 개별 입력)</label>
             <textarea
               id="fbJsonInput"
-              rows="5"
+              rows="4"
               placeholder='{"apiKey": "AIza...", "authDomain": "my-app.firebaseapp.com", "projectId": "my-app", "appId": "1:123..."}'
             ></textarea>
           </div>

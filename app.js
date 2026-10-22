@@ -1,16 +1,19 @@
 // ============================================================================
-// 중학교 건강체력교실 웹앱 (학생 기록 + 참여 달력 + 교사 통계·관리 + Firebase 연동)
+// 중학교 건강체력교실 웹앱 (학생 학번 로그인 + 교사 비밀번호 로그인 + 통계 + Firebase)
 // ============================================================================
 import { DEFAULT_FIREBASE_CONFIG } from "./firebase-config.js";
 
 const STORAGE_KEY = "middle_school_fitness_records_v2";
 const FB_CONFIG_STORAGE_KEY = "middle_school_fitness_fb_config_v1";
 const GOALS_STORAGE_KEY = "middle_school_fitness_goals_v1";
+const TEACHER_PW_STORAGE_KEY = "middle_school_fitness_teacher_pw_v1";
+const SESSION_STORAGE_KEY = "middle_school_fitness_session_v1";
 const TODAY_STR = "2026-10-22";
 
 let goals = loadGoals();
+let teacherPassword = loadTeacherPassword();
 
-// 5명의 중학생 예시 데이터 (1~3학년 다양한 참여 패턴 포함)
+// 5명의 중학생 예시 데이터
 const INITIAL_DEMO_DATA = {
   student1: {
     id: "student1",
@@ -94,6 +97,12 @@ let currentCalYear = 2026;
 let currentCalMonth = 10;
 let currentMood = "😄 상쾌해요";
 
+// 현재 로그인 세션 상태 (role: 'student' | 'teacher')
+let authSession = {
+  role: "student",
+  studentId: "student1"
+};
+
 // Firebase 실시간 연동 상태 객체
 let fbState = {
   connected: false,
@@ -124,6 +133,23 @@ function saveGoals() {
   }
 }
 
+function loadTeacherPassword() {
+  try {
+    return localStorage.getItem(TEACHER_PW_STORAGE_KEY) || "1234";
+  } catch (e) {
+    return "1234";
+  }
+}
+
+function saveTeacherPassword(pw) {
+  teacherPassword = pw;
+  try {
+    localStorage.setItem(TEACHER_PW_STORAGE_KEY, pw);
+  } catch (e) {
+    // ignore
+  }
+}
+
 function loadStore() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -145,8 +171,13 @@ function saveStore() {
   }
 }
 
+// 5자리 학번 포맷 생성 (예: 2학년 3반 7번 -> "20307")
+function formatStudentCode(s) {
+  return `${s.grade}${String(s.classNum).padStart(2, "0")}${String(s.studentNum).padStart(2, "0")}`;
+}
+
 function formatStudentLabel(s) {
-  return `${s.grade}학년 ${s.classNum}반 ${s.studentNum}번 ${s.name}`;
+  return `${s.grade}학년 ${s.classNum}반 ${s.studentNum}번 ${s.name} (${formatStudentCode(s)})`;
 }
 
 function getStudentRecords(studentId = currentStudentId) {
@@ -169,11 +200,28 @@ function isParticipated(rec) {
 document.addEventListener("DOMContentLoaded", async () => {
   initTabs();
   initStudentSelector();
+  initLoginModal();
   initRecordForm();
   initCalendarControls();
   initTeacherControls();
   initFirebaseModal();
   updateGoalTexts();
+
+  // 이전 로그인 세션이 있으면 복원하되, 첫 방문이면 로그인 모달 표시
+  try {
+    const savedSession = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    if (savedSession) {
+      const parsed = JSON.parse(savedSession);
+      if (parsed.role === "teacher") {
+        applyTeacherLogin(true);
+      } else if (parsed.studentId && store[parsed.studentId]) {
+        applyStudentLogin(parsed.studentId, true);
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+
   syncAllUI();
 
   // 저장된 Firebase 설정 또는 firebase-config.js 기본 설정이 있으면 자동 연결
@@ -192,12 +240,238 @@ function updateGoalTexts() {
 }
 
 // ============================================================================
-// 탭 전환
+// 🔐 학생(학년·학번·이름) & 교사(비밀번호) 로그인 모달
+// ============================================================================
+function initLoginModal() {
+  const modal = document.getElementById("loginModal");
+  const openBtn = document.getElementById("openLoginModalBtn");
+  const closeBtn = document.getElementById("closeLoginModalBtn");
+
+  const modeBtnStudent = document.getElementById("modeBtnStudent");
+  const modeBtnTeacher = document.getElementById("modeBtnTeacher");
+  const studentForm = document.getElementById("studentLoginForm");
+  const teacherForm = document.getElementById("teacherLoginForm");
+
+  const codeInput = document.getElementById("loginStudentCode");
+  const gradeSelect = document.getElementById("loginGrade");
+  const classInput = document.getElementById("loginClass");
+  const numInput = document.getElementById("loginNumber");
+  const nameInput = document.getElementById("loginName");
+
+  openBtn.addEventListener("click", () => {
+    openLoginModal("student");
+  });
+
+  closeBtn.addEventListener("click", () => {
+    modal.hidden = true;
+  });
+
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) modal.hidden = true;
+  });
+
+  modeBtnStudent.addEventListener("click", () => switchLoginMode("student"));
+  modeBtnTeacher.addEventListener("click", () => switchLoginMode("teacher"));
+
+  // 5자리 또는 4자리 학번 입력 시 학년/반/번호 자동 분리
+  codeInput.addEventListener("input", () => {
+    const digits = codeInput.value.replace(/\D/g, "");
+    if (digits.length === 5) {
+      // 예: 20307 -> 2학년 03반 07번
+      const g = Number(digits[0]);
+      const c = Number(digits.slice(1, 3));
+      const n = Number(digits.slice(3, 5));
+      if (g >= 1 && g <= 3) gradeSelect.value = String(g);
+      if (c >= 1 && c <= 20) classInput.value = String(c);
+      if (n >= 1 && n <= 50) numInput.value = String(n);
+    } else if (digits.length === 4) {
+      // 예: 2307 -> 2학년 3반 07번
+      const g = Number(digits[0]);
+      const c = Number(digits[1]);
+      const n = Number(digits.slice(2, 4));
+      if (g >= 1 && g <= 3) gradeSelect.value = String(g);
+      if (c >= 1 && c <= 20) classInput.value = String(c);
+      if (n >= 1 && n <= 50) numInput.value = String(n);
+    }
+  });
+
+  // 학년/반/번호 변경 시 학번 코드 자동 업데이트
+  const syncCodeFromFields = () => {
+    const g = Number(gradeSelect.value || 1);
+    const c = Math.max(1, Number(classInput.value || 1));
+    const n = Math.max(1, Number(numInput.value || 1));
+    codeInput.value = `${g}${String(c).padStart(2, "0")}${String(n).padStart(2, "0")}`;
+  };
+  gradeSelect.addEventListener("change", syncCodeFromFields);
+  classInput.addEventListener("input", syncCodeFromFields);
+  numInput.addEventListener("input", syncCodeFromFields);
+
+  // 빠른 예시 학생 프리셋 버튼
+  document.querySelectorAll(".preset-chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      gradeSelect.value = chip.dataset.grade;
+      classInput.value = chip.dataset.class;
+      numInput.value = chip.dataset.num;
+      nameInput.value = chip.dataset.name;
+      syncCodeFromFields();
+    });
+  });
+
+  // 학생 로그인 제출
+  studentForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const grade = Math.min(3, Math.max(1, Number(gradeSelect.value)));
+    const classNum = Math.min(20, Math.max(1, Number(classInput.value)));
+    const studentNum = Math.min(50, Math.max(1, Number(numInput.value)));
+    const name = nameInput.value.trim();
+
+    if (!name) {
+      showToast("학생 이름을 입력해 주세요.");
+      return;
+    }
+
+    // 기존 명단에서 동일한 학년/반/번호 검색
+    let foundId = Object.keys(store).find((id) => {
+      const s = store[id];
+      return (
+        Number(s.grade) === grade &&
+        Number(s.classNum) === classNum &&
+        Number(s.studentNum) === studentNum
+      );
+    });
+
+    if (foundId) {
+      // 이름 업데이트 반영
+      store[foundId].name = name;
+    } else {
+      // 신규 학생 자동 생성
+      foundId = `s_${grade}_${classNum}_${studentNum}`;
+      store[foundId] = {
+        id: foundId,
+        grade,
+        classNum,
+        studentNum,
+        name,
+        records: {}
+      };
+      if (fbState.connected) {
+        await syncStudentDocToFirestore(foundId, store[foundId]);
+      }
+    }
+
+    saveStore();
+    applyStudentLogin(foundId, false);
+    modal.hidden = true;
+  });
+
+  // 교사 비밀번호 로그인 제출
+  teacherForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const pwInput = document.getElementById("loginTeacherPw");
+    const errBox = document.getElementById("teacherLoginError");
+
+    if (pwInput.value === teacherPassword) {
+      errBox.hidden = true;
+      pwInput.value = "";
+      applyTeacherLogin(false);
+      modal.hidden = true;
+    } else {
+      errBox.hidden = false;
+      pwInput.select();
+    }
+  });
+}
+
+function openLoginModal(defaultMode = "student") {
+  const modal = document.getElementById("loginModal");
+  modal.hidden = false;
+  switchLoginMode(defaultMode);
+}
+
+function switchLoginMode(mode) {
+  const isStudent = mode === "student";
+  document.getElementById("modeBtnStudent").classList.toggle("active", isStudent);
+  document.getElementById("modeBtnTeacher").classList.toggle("active", !isStudent);
+  document.getElementById("studentLoginForm").hidden = !isStudent;
+  document.getElementById("teacherLoginForm").hidden = isStudent;
+  document.getElementById("teacherLoginError").hidden = true;
+
+  if (!isStudent) {
+    setTimeout(() => document.getElementById("loginTeacherPw").focus(), 50);
+  }
+}
+
+function applyStudentLogin(studentId, isSilent = false) {
+  authSession = { role: "student", studentId };
+  currentStudentId = studentId;
+  try {
+    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(authSession));
+  } catch (e) {
+    // ignore
+  }
+
+  updateAuthHeaderUI();
+  syncAllUI();
+  switchTab("record");
+
+  if (!isSilent && store[studentId]) {
+    showToast(`🎒 반가워요! ${formatStudentLabel(store[studentId])} 학생으로 로그인되었습니다.`);
+  }
+}
+
+function applyTeacherLogin(isSilent = false) {
+  authSession = { role: "teacher", studentId: currentStudentId };
+  try {
+    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(authSession));
+  } catch (e) {
+    // ignore
+  }
+
+  updateAuthHeaderUI();
+  syncAllUI();
+  switchTab("teacher");
+
+  if (!isSilent) {
+    showToast("👩‍🏫 교사 관리자 모드로 로그인되었습니다. 모든 학생 통계와 기록을 관리할 수 있습니다.");
+  }
+}
+
+function updateAuthHeaderUI() {
+  const badge = document.getElementById("currentUserBadge");
+  const switcher = document.getElementById("teacherStudentSwitcher");
+  const lockIcon = document.getElementById("teacherLockIcon");
+  const summaryLabel = document.getElementById("summaryStudentLabel");
+
+  if (authSession.role === "teacher") {
+    badge.className = "user-role-badge teacher";
+    badge.textContent = "👩‍🏫 교사 관리자 모드";
+    switcher.hidden = false;
+    lockIcon.textContent = "🔓";
+    const s = store[currentStudentId];
+    summaryLabel.textContent = s ? `${s.name} 학생 이번 달 참여` : "이번 달 참여";
+  } else {
+    const s = store[currentStudentId];
+    badge.className = "user-role-badge student";
+    badge.textContent = s ? `🎒 ${formatStudentLabel(s)}` : "🎒 학생 로그인";
+    switcher.hidden = true;
+    lockIcon.textContent = "🔒";
+    summaryLabel.textContent = "내 이번 달 참여";
+  }
+}
+
+// ============================================================================
+// 탭 전환 (학생이 교사 탭 클릭 시 비밀번호 모달 호출)
 // ============================================================================
 function initTabs() {
   document.querySelectorAll(".tab-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
-      switchTab(btn.dataset.tab);
+      const targetTab = btn.dataset.tab;
+      if (targetTab === "teacher" && authSession.role !== "teacher") {
+        showToast("🔒 교사용 관리·통계 화면은 교사 비밀번호 로그인이 필요합니다.");
+        openLoginModal("teacher");
+        return;
+      }
+      switchTab(targetTab);
     });
   });
 
@@ -237,7 +511,7 @@ function switchTab(tabName) {
 }
 
 // ============================================================================
-// 학생 선택 드롭다운
+// 학생 선택 드롭다운 (교사 모드용)
 // ============================================================================
 function renderStudentSelectOptions() {
   const select = document.getElementById("studentSelect");
@@ -260,12 +534,15 @@ function initStudentSelector() {
     currentStudentId = e.target.value;
     syncAllUI();
     const s = store[currentStudentId];
-    if (s) showToast(`${formatStudentLabel(s)} 학생 화면으로 전환되었습니다.`);
+    if (s) showToast(`${formatStudentLabel(s)} 학생 기록을 조회합니다.`);
   });
 
   document.getElementById("resetDemoBtn").addEventListener("click", () => {
     store = JSON.parse(JSON.stringify(INITIAL_DEMO_DATA));
     currentStudentId = "student1";
+    if (authSession.role === "student") {
+      authSession.studentId = "student1";
+    }
     saveStore();
     syncAllUI();
     showToast("5명의 학생 예시 데이터가 초기 상태로 복원되었습니다.");
@@ -664,15 +941,36 @@ function initTeacherControls() {
   document.getElementById("sortBySelect").addEventListener("change", renderTeacherDashboard);
   document.getElementById("studentSearchInput").addEventListener("input", renderTeacherDashboard);
 
-  // 신규 학생 등록 패널 토글
   const addPanel = document.getElementById("addStudentPanel");
-  document.getElementById("openAddStudentBtn").addEventListener("click", () => {
-    addPanel.hidden = !addPanel.hidden;
-    document.getElementById("goalConfigPanel").hidden = true;
-  });
-  document.getElementById("closeAddStudentBtn").addEventListener("click", () => {
+  const goalPanel = document.getElementById("goalConfigPanel");
+  const pwPanel = document.getElementById("pwChangePanel");
+
+  const closeAllPanels = () => {
     addPanel.hidden = true;
+    goalPanel.hidden = true;
+    pwPanel.hidden = true;
+  };
+
+  document.getElementById("openAddStudentBtn").addEventListener("click", () => {
+    const willOpen = addPanel.hidden;
+    closeAllPanels();
+    addPanel.hidden = !willOpen;
   });
+  document.getElementById("closeAddStudentBtn").addEventListener("click", closeAllPanels);
+
+  document.getElementById("openGoalConfigBtn").addEventListener("click", () => {
+    const willOpen = goalPanel.hidden;
+    closeAllPanels();
+    goalPanel.hidden = !willOpen;
+  });
+  document.getElementById("closeGoalConfigBtn").addEventListener("click", closeAllPanels);
+
+  document.getElementById("openPwChangeBtn").addEventListener("click", () => {
+    const willOpen = pwPanel.hidden;
+    closeAllPanels();
+    pwPanel.hidden = !willOpen;
+  });
+  document.getElementById("closePwChangeBtn").addEventListener("click", closeAllPanels);
 
   // 신규 학생 저장
   document.getElementById("addStudentForm").addEventListener("submit", async (e) => {
@@ -687,14 +985,14 @@ function initTeacherControls() {
       return;
     }
 
-    const newId = `s_${grade}_${classNum}_${studentNum}_${Date.now().toString().slice(-4)}`;
+    const newId = `s_${grade}_${classNum}_${studentNum}`;
     const newStudent = {
       id: newId,
       grade,
       classNum,
       studentNum,
       name,
-      records: {}
+      records: store[newId]?.records || {}
     };
 
     store[newId] = newStudent;
@@ -710,16 +1008,7 @@ function initTeacherControls() {
     showToast(`➕ ${formatStudentLabel(newStudent)} 학생이 등록되었습니다!`);
   });
 
-  // 목표 설정 패널 토글
-  const goalPanel = document.getElementById("goalConfigPanel");
-  document.getElementById("openGoalConfigBtn").addEventListener("click", () => {
-    goalPanel.hidden = !goalPanel.hidden;
-    addPanel.hidden = true;
-  });
-  document.getElementById("closeGoalConfigBtn").addEventListener("click", () => {
-    goalPanel.hidden = true;
-  });
-
+  // 목표 설정 저장
   document.getElementById("goalConfigForm").addEventListener("submit", (e) => {
     e.preventDefault();
     goals.run = Math.max(0.5, Number(document.getElementById("cfgRunGoal").value || 5));
@@ -729,6 +1018,20 @@ function initTeacherControls() {
     goalPanel.hidden = true;
     syncAllUI();
     showToast(`🎯 일일 목표가 달리기 ${goals.run}바퀴, 줄넘기 ${goals.jump}개로 변경되었습니다.`);
+  });
+
+  // 교사 비밀번호 변경 저장
+  document.getElementById("pwChangeForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const newPw = document.getElementById("newTeacherPw").value.trim();
+    if (!newPw) {
+      showToast("변경할 새 비밀번호를 입력해 주세요.");
+      return;
+    }
+    saveTeacherPassword(newPw);
+    document.getElementById("newTeacherPw").value = "";
+    pwPanel.hidden = true;
+    showToast("🔑 교사용 로그인 비밀번호가 성공적으로 변경되었습니다!");
   });
 
   // 엑셀(CSV) 내보내기
@@ -754,12 +1057,11 @@ function renderTeacherDashboard() {
     sumRun += st.totalRun;
     sumJump += st.totalJump;
     if (st.monthDays < 4) {
-      lowStudentNames.push(`${s.grade}-${s.classNum} ${s.name}(${st.monthDays}일)`);
+      lowStudentNames.push(`${formatStudentCode(s)} ${s.name}(${st.monthDays}일)`);
     }
     return { ...s, stats: st };
   });
 
-  // 상단 KPI 업데이트
   const todayRate = totalCount > 0 ? Math.round((todayParticipants / totalCount) * 100) : 0;
   const avgDays = totalCount > 0 ? (sumMonthDays / totalCount).toFixed(1) : "0.0";
   const goalRate = sumMonthDays > 0 ? Math.round((sumGoalDays / sumMonthDays) * 100) : 0;
@@ -778,7 +1080,6 @@ function renderTeacherDashboard() {
 
   document.getElementById("teacherTableMonth").textContent = `${currentCalYear}년 ${currentCalMonth}월`;
 
-  // 필터 및 정렬 적용
   const gradeFilter = document.getElementById("filterGrade").value;
   const sortBy = document.getElementById("sortBySelect").value;
   const queryText = document.getElementById("studentSearchInput").value.trim().toLowerCase();
@@ -787,7 +1088,7 @@ function renderTeacherDashboard() {
     .filter((item) => {
       if (gradeFilter !== "all" && String(item.grade) !== gradeFilter) return false;
       if (queryText) {
-        const label = `${item.grade}학년 ${item.classNum}반 ${item.name}`.toLowerCase();
+        const label = `${formatStudentCode(item)} ${item.grade}학년 ${item.classNum}반 ${item.name}`.toLowerCase();
         if (!label.includes(queryText)) return false;
       }
       return true;
@@ -805,7 +1106,7 @@ function renderTeacherDashboard() {
     });
 
   const tbody = document.getElementById("teacherTableBody");
-  const recommendedMonthDays = 12; // 월 권장 수업/자율운동 기준일 (12일)
+  const recommendedMonthDays = 12;
 
   if (filtered.length === 0) {
     tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding: 24px; color: var(--text-muted);">조건에 맞는 학생이 없습니다.</td></tr>`;
@@ -824,6 +1125,7 @@ function renderTeacherDashboard() {
         return `
           <tr>
             <td>
+              <span class="student-code-tag">${formatStudentCode(s)}</span>
               <strong>${s.grade}학년 ${s.classNum}반 ${s.studentNum}번 ${escapeHtml(s.name)}</strong>
             </td>
             <td>
@@ -889,7 +1191,6 @@ function renderDailyAttendanceChart(allStudents) {
   const chartEl = document.getElementById("dailyAttendanceChart");
   const totalStudents = Math.max(1, allStudents.length);
 
-  // 2026-10-09 ~ 2026-10-22 (최근 14일)
   const days = [];
   for (let d = 9; d <= 22; d++) {
     days.push(`2026-10-${String(d).padStart(2, "0")}`);
@@ -917,6 +1218,7 @@ function renderDailyAttendanceChart(allStudents) {
 
 function exportClassStatsToCSV() {
   const headers = [
+    "학번",
     "학년",
     "반",
     "번호",
@@ -939,6 +1241,7 @@ function exportClassStatsToCSV() {
         ? "독려 필요"
         : "성실 참여";
     return [
+      formatStudentCode(s),
       s.grade,
       s.classNum,
       s.studentNum,
@@ -953,7 +1256,6 @@ function exportClassStatsToCSV() {
     ].join(",");
   });
 
-  // 한글 엑셀 호환을 위한 UTF-8 BOM 추가
   const csvContent = "\uFEFF" + [headers.join(","), ...rows].join("\r\n");
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
@@ -1011,7 +1313,6 @@ function initFirebaseModal() {
     if (e.target === modal) modal.hidden = true;
   });
 
-  // JSON 붙여넣기 시 자동 파싱하여 개별 필드에 채움
   jsonInput.addEventListener("input", () => {
     const raw = jsonInput.value.trim();
     if (!raw) return;
@@ -1025,7 +1326,6 @@ function initFirebaseModal() {
       if (obj.authDomain) document.getElementById("fbAuthDomain").value = obj.authDomain;
       if (obj.appId) document.getElementById("fbAppId").value = obj.appId;
     } catch (e) {
-      // JSON 형태가 아닌 경우 정규식으로 추출 시도
       const extract = (key) => {
         const m = raw.match(new RegExp(`${key}\\s*:\\s*["']([^"']+)["']`));
         return m ? m[1] : "";
@@ -1081,7 +1381,6 @@ async function connectToFirebase(config, isSilent = false) {
     const auth = authMod.getAuth(app);
     const db = fsMod.getFirestore(app);
 
-    // 익명 인증 로그인 수행 (firestore.rules의 request.auth != null 충족)
     const cred = await authMod.signInAnonymously(auth);
 
     fbState = {
@@ -1224,7 +1523,6 @@ function listenToStudentRecords(studentId) {
   );
 }
 
-// firestore.rules 스키마 준수 저장 함수들
 async function syncStudentDocToFirestore(studentId, studentObj) {
   if (!fbState.connected) return;
   const { doc, setDoc, serverTimestamp } = fbState.sdk;
@@ -1246,7 +1544,6 @@ async function syncStudentDocToFirestore(studentId, studentObj) {
 async function syncRecordToFirestore(studentId, dateStr, rec) {
   if (!fbState.connected) return;
   const { doc, setDoc, serverTimestamp } = fbState.sdk;
-  // 부모 학생 문서가 먼저 존재하도록 보장
   if (store[studentId]) {
     await syncStudentDocToFirestore(studentId, store[studentId]);
   }
@@ -1289,6 +1586,7 @@ async function uploadAllLocalDataToFirestore() {
 // ============================================================================
 function syncAllUI() {
   renderStudentSelectOptions();
+  updateAuthHeaderUI();
   loadDateIntoForm(currentDateStr);
   renderSummaryStats();
   renderRecentList();
