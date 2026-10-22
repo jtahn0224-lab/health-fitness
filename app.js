@@ -1,7 +1,7 @@
 // ============================================================================
 // 중학교 건강체력교실 웹앱 (학생 학번 로그인 + 교사 비밀번호 로그인 + 통계 + Firebase)
 // ============================================================================
-import { DEFAULT_FIREBASE_CONFIG } from "./firebase-config.js";
+const DEFAULT_FIREBASE_CONFIG = window.DEFAULT_FIREBASE_CONFIG || {};
 
 const STORAGE_KEY = "middle_school_fitness_records_v2";
 const FB_CONFIG_STORAGE_KEY = "middle_school_fitness_fb_config_v1";
@@ -197,7 +197,7 @@ function isParticipated(rec) {
 // ============================================================================
 // 초기화
 // ============================================================================
-document.addEventListener("DOMContentLoaded", async () => {
+async function bootApp() {
   initTabs();
   initStudentSelector();
   initLoginModal();
@@ -229,7 +229,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (savedConfig && savedConfig.apiKey && savedConfig.projectId) {
     await connectToFirebase(savedConfig, true);
   }
-});
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", bootApp);
+} else {
+  bootApp();
+}
 
 function updateGoalTexts() {
   document.getElementById("runGoalText").textContent = `${goals.run}바퀴`;
@@ -242,6 +248,46 @@ function updateGoalTexts() {
 // ============================================================================
 // 🔐 학생(학년·학번·이름) & 교사(비밀번호) 로그인 모달
 // ============================================================================
+function closeLoginModal() {
+  const modal = document.getElementById("loginModal");
+  if (!modal) return;
+  modal.hidden = true;
+  modal.style.display = "none";
+}
+
+function openLoginModal(defaultMode = "student") {
+  const modal = document.getElementById("loginModal");
+  if (!modal) return;
+  modal.hidden = false;
+  modal.style.display = "flex";
+  switchLoginMode(defaultMode);
+}
+
+function switchLoginMode(mode) {
+  const isStudent = mode === "student";
+  const btnStudent = document.getElementById("modeBtnStudent");
+  const btnTeacher = document.getElementById("modeBtnTeacher");
+  const studentForm = document.getElementById("studentLoginForm");
+  const teacherForm = document.getElementById("teacherLoginForm");
+  const errBox = document.getElementById("teacherLoginError");
+
+  btnStudent.classList.toggle("active", isStudent);
+  btnTeacher.classList.toggle("active", !isStudent);
+
+  studentForm.hidden = !isStudent;
+  studentForm.style.display = isStudent ? "block" : "none";
+
+  teacherForm.hidden = isStudent;
+  teacherForm.style.display = isStudent ? "none" : "block";
+
+  errBox.hidden = true;
+  errBox.style.display = "none";
+
+  if (!isStudent) {
+    setTimeout(() => document.getElementById("loginTeacherPw")?.focus(), 50);
+  }
+}
+
 function initLoginModal() {
   const modal = document.getElementById("loginModal");
   const openBtn = document.getElementById("openLoginModalBtn");
@@ -263,11 +309,11 @@ function initLoginModal() {
   });
 
   closeBtn.addEventListener("click", () => {
-    modal.hidden = true;
+    closeLoginModal();
   });
 
   modal.addEventListener("click", (e) => {
-    if (e.target === modal) modal.hidden = true;
+    if (e.target === modal) closeLoginModal();
   });
 
   modeBtnStudent.addEventListener("click", () => switchLoginMode("student"));
@@ -277,7 +323,6 @@ function initLoginModal() {
   codeInput.addEventListener("input", () => {
     const digits = codeInput.value.replace(/\D/g, "");
     if (digits.length === 5) {
-      // 예: 20307 -> 2학년 03반 07번
       const g = Number(digits[0]);
       const c = Number(digits.slice(1, 3));
       const n = Number(digits.slice(3, 5));
@@ -285,7 +330,6 @@ function initLoginModal() {
       if (c >= 1 && c <= 20) classInput.value = String(c);
       if (n >= 1 && n <= 50) numInput.value = String(n);
     } else if (digits.length === 4) {
-      // 예: 2307 -> 2학년 3반 07번
       const g = Number(digits[0]);
       const c = Number(digits[1]);
       const n = Number(digits.slice(2, 4));
@@ -317,20 +361,20 @@ function initLoginModal() {
     });
   });
 
-  // 학생 로그인 제출
-  studentForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const grade = Math.min(3, Math.max(1, Number(gradeSelect.value)));
-    const classNum = Math.min(20, Math.max(1, Number(classInput.value)));
-    const studentNum = Math.min(50, Math.max(1, Number(numInput.value)));
+  // 학생 로그인 실행 함수
+  const handleStudentLogin = async (e) => {
+    if (e) e.preventDefault();
+    const grade = Math.min(3, Math.max(1, Number(gradeSelect.value || 2)));
+    const classNum = Math.min(20, Math.max(1, Number(classInput.value || 1)));
+    const studentNum = Math.min(50, Math.max(1, Number(numInput.value || 1)));
     const name = nameInput.value.trim();
 
     if (!name) {
-      showToast("학생 이름을 입력해 주세요.");
+      showToast("학생 이름을 입력해 주세요!");
+      nameInput.focus();
       return;
     }
 
-    // 기존 명단에서 동일한 학년/반/번호 검색
     let foundId = Object.keys(store).find((id) => {
       const s = store[id];
       return (
@@ -341,10 +385,8 @@ function initLoginModal() {
     });
 
     if (foundId) {
-      // 이름 업데이트 반영
       store[foundId].name = name;
     } else {
-      // 신규 학생 자동 생성
       foundId = `s_${grade}_${classNum}_${studentNum}`;
       store[foundId] = {
         id: foundId,
@@ -361,44 +403,34 @@ function initLoginModal() {
 
     saveStore();
     applyStudentLogin(foundId, false);
-    modal.hidden = true;
-  });
+    closeLoginModal();
+  };
 
-  // 교사 비밀번호 로그인 제출
-  teacherForm.addEventListener("submit", (e) => {
-    e.preventDefault();
+  studentForm.addEventListener("submit", handleStudentLogin);
+
+  // 교사 비밀번호 로그인 실행 함수
+  const handleTeacherLogin = (e) => {
+    if (e) e.preventDefault();
     const pwInput = document.getElementById("loginTeacherPw");
     const errBox = document.getElementById("teacherLoginError");
+    const entered = pwInput.value.trim();
 
-    if (pwInput.value === teacherPassword) {
+    if (entered === teacherPassword) {
       errBox.hidden = true;
+      errBox.style.display = "none";
       pwInput.value = "";
       applyTeacherLogin(false);
-      modal.hidden = true;
+      closeLoginModal();
     } else {
       errBox.hidden = false;
+      errBox.style.display = "block";
+      showToast("❌ 비밀번호가 일치하지 않습니다. (초기 비밀번호: 1234)");
+      pwInput.focus();
       pwInput.select();
     }
-  });
-}
+  };
 
-function openLoginModal(defaultMode = "student") {
-  const modal = document.getElementById("loginModal");
-  modal.hidden = false;
-  switchLoginMode(defaultMode);
-}
-
-function switchLoginMode(mode) {
-  const isStudent = mode === "student";
-  document.getElementById("modeBtnStudent").classList.toggle("active", isStudent);
-  document.getElementById("modeBtnTeacher").classList.toggle("active", !isStudent);
-  document.getElementById("studentLoginForm").hidden = !isStudent;
-  document.getElementById("teacherLoginForm").hidden = isStudent;
-  document.getElementById("teacherLoginError").hidden = true;
-
-  if (!isStudent) {
-    setTimeout(() => document.getElementById("loginTeacherPw").focus(), 50);
-  }
+  teacherForm.addEventListener("submit", handleTeacherLogin);
 }
 
 function applyStudentLogin(studentId, isSilent = false) {
