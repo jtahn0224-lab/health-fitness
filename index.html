@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>건강체력교실</title>
   <style>[hidden] { display: none !important; }</style>
-  <link rel="stylesheet" href="style.css?v=20261022_pc2" />
+  <link rel="stylesheet" href="style.css?v=20261022_rtdb" />
 </head>
 <body>
   <div class="mobile-shell">
@@ -518,31 +518,41 @@
     </div>
 
     <!-- ======================================================================
-         ☁️ Firebase 클라우드 설정 모달
+         ☁️ Firebase Realtime Database 설정 모달
          ====================================================================== -->
     <div id="firebaseModal" class="modal-backdrop" hidden>
       <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="fbModalTitle">
         <div class="sheet-header">
-          <h2 id="fbModalTitle">☁️ Firebase 서버 연동</h2>
+          <h2 id="fbModalTitle">☁️ Firebase 실시간 DB 연동</h2>
           <button type="button" id="closeFirebaseModalBtn" class="btn-mini-ghost">닫기 ✕</button>
         </div>
 
         <form id="firebaseConfigForm" class="sub-form">
-          <label for="fbJsonInput">firebaseConfig JSON 붙여넣기</label>
+          <label for="fbJsonInput">firebaseConfig 코드 전체 붙여넣기 (자동 입력됨)</label>
           <textarea
             id="fbJsonInput"
             rows="3"
-            placeholder='{"apiKey": "AIza...", "projectId": "my-app", ...}'
+            placeholder='const firebaseConfig = { apiKey: "AIza...", databaseURL: "https://...-default-rtdb.firebaseio.com", projectId: "..." };'
           ></textarea>
+
+          <div>
+            <label for="fbDatabaseUrl">Realtime Database 주소 (databaseURL) *</label>
+            <input
+              type="url"
+              id="fbDatabaseUrl"
+              placeholder="https://프로젝트ID-default-rtdb.firebaseio.com"
+              required
+            />
+          </div>
 
           <div class="grid-2">
             <div>
-              <label for="fbApiKey">apiKey *</label>
-              <input type="text" id="fbApiKey" placeholder="AIzaSy..." required />
+              <label for="fbApiKey">apiKey (선택/권장)</label>
+              <input type="text" id="fbApiKey" placeholder="AIzaSy..." />
             </div>
             <div>
-              <label for="fbProjectId">projectId *</label>
-              <input type="text" id="fbProjectId" placeholder="project-id" required />
+              <label for="fbProjectId">projectId (선택/권장)</label>
+              <input type="text" id="fbProjectId" placeholder="project-id" />
             </div>
           </div>
           <input type="hidden" id="fbAuthDomain" />
@@ -553,8 +563,8 @@
           </div>
 
           <div class="sub-form">
-            <button type="submit" class="btn-save-main btn-full">☁️ 서버 연결 시작</button>
-            <button type="button" id="seedToCloudBtn" class="tool-btn" hidden>📤 예시 데이터 서버 업로드</button>
+            <button type="submit" class="btn-save-main btn-full">☁️ 실시간 DB 연결 시작</button>
+            <button type="button" id="seedToCloudBtn" class="tool-btn" hidden>📤 현재 학생·기록 데이터 서버에 업로드</button>
             <button type="button" id="disconnectFirebaseBtn" class="tool-btn danger" hidden>연결 해제</button>
           </div>
         </form>
@@ -565,7 +575,7 @@
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   </div>
 
-  <script src="firebase-config.js?v=20261022_pc2"></script>
-  <script src="app.js?v=20261022_pc2"></script>
+  <script src="firebase-config.js?v=20261022_rtdb"></script>
+  <script src="app.js?v=20261022_rtdb"></script>
 </body>
 </html>

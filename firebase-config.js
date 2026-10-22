@@ -1,19 +1,21 @@
 // ============================================================================
-// Firebase 프로젝트 연동 설정 파일 (firebase-config.js)
+// Firebase Realtime Database (실시간 데이터베이스) 연동 설정 파일 (firebase-config.js)
 // ============================================================================
-// [연동 방법]
-// 1. Firebase 콘솔(https://console.firebase.google.com/)에서 새 프로젝트를 생성합니다.
-// 2. [프로젝트 설정] -> [내 앱] -> [웹(</>)] 앱을 추가하고 firebaseConfig 값을 복사합니다.
-// 3. Authentication에서 [익명(Anonymous)] 로그인을 '사용 설정'합니다.
-// 4. Cloud Firestore 데이터베이스를 생성합니다.
-// 5. 아래 DEFAULT_FIREBASE_CONFIG 객체에 복사한 값을 붙여넣거나,
-//    웹앱 상단의 [로컬 체험 모드 (Firebase 연결 설정)] 버튼에서 바로 붙여넣어 연결할 수 있습니다.
+// [연동 방법 요약]
+// 1. Firebase 콘솔(https://console.firebase.google.com/)에서 프로젝트를 생성합니다.
+// 2. 왼쪽 메뉴 [빌드] -> [Realtime Database] -> [데이터베이스 만들기]를 클릭합니다.
+//    (처음 테스트할 때는 '테스트 모드에서 시작'을 선택하면 가장 간편합니다.)
+// 3. [프로젝트 설정(⚙️)] -> [일반] -> [내 앱]에서 웹(</>) 앱을 추가하고
+//    firebaseConfig 값(특히 apiKey, projectId, databaseURL)을 복사합니다.
+// 4. 아래 DEFAULT_FIREBASE_CONFIG에 붙여넣거나,
+//    웹앱 상단의 [로컬 모드 · 서버설정] 버튼을 눌러 화면에서 바로 붙여넣어도 됩니다!
 // ============================================================================
 
 window.DEFAULT_FIREBASE_CONFIG = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
+  apiKey: "AIzaSy...", // 선택 (웹 앱 추가 시 발급)
+  authDomain: "프로젝트ID.firebaseapp.com",
+  databaseURL: "https://여기에-복사한-실시간DB-주소.firebaseio.com", // ★ 필수!
+  projectId: "프로젝트ID",
   storageBucket: "",
   messagingSenderId: "",
   appId: ""

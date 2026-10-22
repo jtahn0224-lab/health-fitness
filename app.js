@@ -211,7 +211,7 @@ async function bootApp() {
   syncAllUI();
 
   const savedConfig = loadSavedFirebaseConfig();
-  if (savedConfig && savedConfig.apiKey && savedConfig.projectId) {
+  if (savedConfig && (savedConfig.databaseURL || savedConfig.projectId)) {
     await connectToFirebase(savedConfig, true);
   }
 }
@@ -1223,20 +1223,38 @@ function exportClassStatsToCSV() {
 }
 
 // ============================================================================
-// Firebase 클라우드 실시간 연동
+// Firebase Realtime Database (실시간 데이터베이스) 연동
 // ============================================================================
+function normalizeRtdbConfig(rawCfg) {
+  if (!rawCfg) return null;
+  let databaseURL = (rawCfg.databaseURL || "").trim().replace(/\/+$/, "");
+  let projectId = (rawCfg.projectId || "").trim();
+  const apiKey = (rawCfg.apiKey || "").trim();
+
+  if (!projectId && databaseURL) {
+    const m = databaseURL.match(/https?:\/\/([a-zA-Z0-9-]+?)(?:-default-rtdb)?\./);
+    if (m) projectId = m[1];
+  }
+  if (!databaseURL && projectId) {
+    databaseURL = `https://${projectId}-default-rtdb.firebaseio.com`;
+  }
+  if (!databaseURL) return null;
+
+  const authDomain = (rawCfg.authDomain || "").trim() || (projectId ? `${projectId}.firebaseapp.com` : "");
+  const appId = (rawCfg.appId || "").trim();
+
+  return { apiKey, authDomain, databaseURL, projectId: projectId || "rtdb-project", appId };
+}
+
 function loadSavedFirebaseConfig() {
   try {
     const raw = localStorage.getItem(FB_CONFIG_STORAGE_KEY);
     if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && parsed.apiKey && parsed.projectId) return parsed;
+      const parsed = normalizeRtdbConfig(JSON.parse(raw));
+      if (parsed) return parsed;
     }
   } catch (e) {}
-  if (DEFAULT_FIREBASE_CONFIG && DEFAULT_FIREBASE_CONFIG.apiKey && DEFAULT_FIREBASE_CONFIG.projectId) {
-    return DEFAULT_FIREBASE_CONFIG;
-  }
-  return null;
+  return normalizeRtdbConfig(DEFAULT_FIREBASE_CONFIG);
 }
 
 function initFirebaseModal() {
@@ -1244,10 +1262,12 @@ function initFirebaseModal() {
   const openBtn = document.getElementById("firebaseModalBtn");
   const closeBtn = document.getElementById("closeFirebaseModalBtn");
   const jsonInput = document.getElementById("fbJsonInput");
+  const dbUrlInput = document.getElementById("fbDatabaseUrl");
 
   openBtn.addEventListener("click", () => {
     const saved = loadSavedFirebaseConfig();
     if (saved) {
+      if (dbUrlInput) dbUrlInput.value = saved.databaseURL || "";
       document.getElementById("fbApiKey").value = saved.apiKey || "";
       document.getElementById("fbProjectId").value = saved.projectId || "";
       document.getElementById("fbAuthDomain").value = saved.authDomain || "";
@@ -1270,45 +1290,64 @@ function initFirebaseModal() {
   jsonInput.addEventListener("input", () => {
     const raw = jsonInput.value.trim();
     if (!raw) return;
+
+    // URL만 단독으로 붙여넣은 경우
+    if (/^https?:\/\/[^\s"']+$/.test(raw)) {
+      if (dbUrlInput) dbUrlInput.value = raw.replace(/\/+$/, "");
+      const m = raw.match(/https?:\/\/([a-zA-Z0-9-]+?)(?:-default-rtdb)?\./);
+      if (m && !document.getElementById("fbProjectId").value) {
+        document.getElementById("fbProjectId").value = m[1];
+      }
+      return;
+    }
+
+    const extract = (key) => {
+      const m = raw.match(new RegExp(`${key}\\s*:\\s*["']([^"']+)["']`));
+      return m ? m[1] : "";
+    };
+
     try {
-      const cleaned = raw.replace(/const\s+firebaseConfig\s*=\s*/, "").replace(/;$/, "");
+      const cleaned = raw.replace(/^[^{]*=/, "").replace(/;?\s*$/, "");
       const obj = JSON.parse(cleaned);
+      if (obj.databaseURL && dbUrlInput) dbUrlInput.value = obj.databaseURL;
       if (obj.apiKey) document.getElementById("fbApiKey").value = obj.apiKey;
       if (obj.projectId) document.getElementById("fbProjectId").value = obj.projectId;
       if (obj.authDomain) document.getElementById("fbAuthDomain").value = obj.authDomain;
       if (obj.appId) document.getElementById("fbAppId").value = obj.appId;
     } catch (e) {
-      const extract = (key) => {
-        const m = raw.match(new RegExp(`${key}\\s*:\\s*["']([^"']+)["']`));
-        return m ? m[1] : "";
-      };
+      if (extract("databaseURL") && dbUrlInput) dbUrlInput.value = extract("databaseURL");
       if (extract("apiKey")) document.getElementById("fbApiKey").value = extract("apiKey");
       if (extract("projectId")) document.getElementById("fbProjectId").value = extract("projectId");
       if (extract("authDomain")) document.getElementById("fbAuthDomain").value = extract("authDomain");
       if (extract("appId")) document.getElementById("fbAppId").value = extract("appId");
     }
+
+    if (dbUrlInput && !dbUrlInput.value && document.getElementById("fbProjectId").value) {
+      dbUrlInput.value = `https://${document.getElementById("fbProjectId").value.trim()}-default-rtdb.firebaseio.com`;
+    }
   });
 
   document.getElementById("firebaseConfigForm").addEventListener("submit", async (e) => {
     e.preventDefault();
+    const databaseURL = dbUrlInput ? dbUrlInput.value.trim() : "";
     const apiKey = document.getElementById("fbApiKey").value.trim();
     const projectId = document.getElementById("fbProjectId").value.trim();
-    const authDomain =
-      document.getElementById("fbAuthDomain").value.trim() || `${projectId}.firebaseapp.com`;
+    const authDomain = document.getElementById("fbAuthDomain").value.trim();
     const appId = document.getElementById("fbAppId").value.trim();
 
-    if (!apiKey || !projectId) {
-      showToast("apiKey와 projectId를 입력해 주세요.");
+    const normalized = normalizeRtdbConfig({ apiKey, projectId, databaseURL, authDomain, appId });
+    if (!normalized) {
+      showToast("Realtime Database 주소(databaseURL) 또는 projectId를 입력해 주세요.");
       return;
     }
 
-    await connectToFirebase({ apiKey, projectId, authDomain, appId }, false);
+    await connectToFirebase(normalized, false);
   });
 
   document.getElementById("seedToCloudBtn").addEventListener("click", async () => {
     if (!fbState.connected) return;
     await uploadAllLocalDataToFirestore();
-    showToast("📤 예시 데이터 업로드 완료!");
+    showToast("📤 현재 데이터를 Realtime DB에 업로드했습니다!");
   });
 
   document.getElementById("disconnectFirebaseBtn").addEventListener("click", () => {
@@ -1317,29 +1356,45 @@ function initFirebaseModal() {
   });
 }
 
-async function connectToFirebase(config, isSilent = false) {
+async function connectToFirebase(rawConfig, isSilent = false) {
   const statusBox = document.getElementById("fbConnectionDetail");
-  try {
-    statusBox.textContent = "⏳ 서버 연결 중...";
+  const config = normalizeRtdbConfig(rawConfig);
+  if (!config) return;
 
-    const [appMod, authMod, fsMod] = await Promise.all([
+  try {
+    statusBox.textContent = "⏳ Firebase Realtime Database 연결 중...";
+
+    const [appMod, dbMod] = await Promise.all([
       import("https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js"),
-      import("https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js"),
-      import("https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js")
+      import("https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js")
     ]);
 
-    const app = appMod.initializeApp(config, "fitnessApp_" + Date.now());
-    const auth = authMod.getAuth(app);
-    const db = fsMod.getFirestore(app);
-    const cred = await authMod.signInAnonymously(auth);
+    const app = appMod.initializeApp(config, "fitnessRtdbApp_" + Date.now());
+    let uid = "rtdb_user";
+
+    // apiKey가 있고 익명 로그인이 켜져 있으면 로그인 시도 (꺼져 있어도 테스트 모드에서 정상 작동)
+    if (config.apiKey) {
+      try {
+        const authMod = await import("https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js");
+        const auth = authMod.getAuth(app);
+        const cred = await authMod.signInAnonymously(auth);
+        uid = cred.user.uid;
+      } catch (authErr) {
+        // 익명 로그인이 비활성화된 경우에도 Realtime DB 테스트 모드로 계속 진행
+      }
+    }
+
+    const db = dbMod.getDatabase(app, config.databaseURL);
+
+    if (fbState.unsubStudents) fbState.unsubStudents();
 
     fbState = {
       connected: true,
       app,
-      auth,
+      auth: null,
       db,
-      sdk: { ...appMod, ...authMod, ...fsMod },
-      uid: cred.user.uid,
+      sdk: { ...appMod, ...dbMod },
+      uid,
       unsubStudents: null,
       unsubRecordsMap: {}
     };
@@ -1348,21 +1403,20 @@ async function connectToFirebase(config, isSilent = false) {
     updateCloudBadgeUI(true, config.projectId);
     startRealtimeListeners();
 
-    statusBox.textContent = `✅ 연결됨 (${config.projectId})`;
+    statusBox.textContent = `✅ 실시간 DB 연결됨 (${config.databaseURL})`;
     document.getElementById("seedToCloudBtn").hidden = false;
     document.getElementById("disconnectFirebaseBtn").hidden = false;
 
-    if (!isSilent) showToast(`☁️ Firebase (${config.projectId}) 연결 완료!`);
+    if (!isSilent) showToast(`☁️ 실시간 데이터베이스 연결 완료!`);
   } catch (err) {
-    statusBox.textContent = `❌ 연결 실패: 설정값 및 익명 로그인을 확인하세요.`;
+    statusBox.textContent = `❌ 연결 실패: databaseURL 주소와 데이터베이스 규칙(테스트 모드)을 확인하세요.`;
     updateCloudBadgeUI(false);
-    if (!isSilent) showToast("Firebase 연결 실패");
+    if (!isSilent) showToast("Realtime DB 연결 실패");
   }
 }
 
 function disconnectFirebase() {
   if (fbState.unsubStudents) fbState.unsubStudents();
-  Object.values(fbState.unsubRecordsMap).forEach((unsub) => unsub && unsub());
   fbState = {
     connected: false,
     app: null,
@@ -1385,7 +1439,7 @@ function updateCloudBadgeUI(isOnline, projectId = "") {
   const textEl = document.getElementById("cloudStatusText");
   if (isOnline) {
     btn.className = "cloud-mini-btn online";
-    textEl.textContent = `클라우드 연동중 (${projectId})`;
+    textEl.textContent = `실시간 DB 연동중 (${projectId})`;
   } else {
     btn.className = "cloud-mini-btn offline";
     textEl.textContent = "로컬 모드 · 서버설정";
@@ -1394,115 +1448,92 @@ function updateCloudBadgeUI(isOnline, projectId = "") {
 
 function startRealtimeListeners() {
   if (!fbState.connected) return;
-  const { collection, onSnapshot } = fbState.sdk;
+  const { ref, onValue } = fbState.sdk;
+  const studentsRef = ref(fbState.db, "fitnessClassroom/students");
 
-  fbState.unsubStudents = onSnapshot(collection(fbState.db, "students"), (snapshot) => {
-    snapshot.docChanges().forEach((change) => {
-      const sId = change.doc.id;
-      const data = change.doc.data();
-      if (change.type === "removed") {
-        delete store[sId];
-        if (fbState.unsubRecordsMap[sId]) {
-          fbState.unsubRecordsMap[sId]();
-          delete fbState.unsubRecordsMap[sId];
-        }
-      } else {
-        const existingRecords = store[sId]?.records || {};
-        store[sId] = {
+  fbState.unsubStudents = onValue(
+    studentsRef,
+    async (snapshot) => {
+      const val = snapshot.val();
+      if (!val) {
+        // 서버가 비어 있으면 현재 로컬 데이터를 최초 1회 자동 업로드
+        await uploadAllLocalDataToFirestore();
+        return;
+      }
+
+      const nextStore = {};
+      Object.entries(val).forEach(([sId, data]) => {
+        nextStore[sId] = {
           id: sId,
           grade: Number(data.grade || 1),
           classNum: Number(data.classNum || 1),
           studentNum: Number(data.studentNum || 1),
           name: data.name || "이름없음",
-          records: existingRecords
+          records: data.records || {}
         };
-        if (!fbState.unsubRecordsMap[sId]) listenToStudentRecords(sId);
-      }
-    });
-    saveStore();
-    syncAllUI();
-  });
-}
+      });
 
-function listenToStudentRecords(studentId) {
-  if (!fbState.connected) return;
-  const { collection, onSnapshot } = fbState.sdk;
-  const recordsCol = collection(fbState.db, "students", studentId, "records");
-
-  fbState.unsubRecordsMap[studentId] = onSnapshot(recordsCol, (snapshot) => {
-    if (!store[studentId]) return;
-    const nextRecords = { ...(store[studentId].records || {}) };
-    snapshot.docChanges().forEach((change) => {
-      const dateStr = change.doc.id;
-      if (change.type === "removed") {
-        delete nextRecords[dateStr];
-      } else {
-        const d = change.doc.data();
-        nextRecords[dateStr] = {
-          run: Number(d.run || 0),
-          jump: Number(d.jump || 0),
-          mood: d.mood || "😄 상쾌해요",
-          note: d.note || ""
-        };
+      store = nextStore;
+      if (!store[currentStudentId]) {
+        currentStudentId = Object.keys(store)[0] || "student1";
       }
-    });
-    store[studentId].records = nextRecords;
-    saveStore();
-    syncAllUI();
-  });
+      saveStore();
+      syncAllUI();
+    },
+    (err) => {
+      const statusBox = document.getElementById("fbConnectionDetail");
+      if (statusBox) {
+        statusBox.textContent = `⚠️ 권한 오류: Firebase 콘솔 -> Realtime Database -> [규칙] 탭에서 read/write를 true로 설정해 주세요.`;
+      }
+    }
+  );
 }
 
 async function syncStudentDocToFirestore(studentId, studentObj) {
   if (!fbState.connected) return;
-  const { doc, setDoc, serverTimestamp } = fbState.sdk;
-  await setDoc(
-    doc(fbState.db, "students", studentId),
-    {
-      name: String(studentObj.name).slice(0, 40),
-      grade: Number(studentObj.grade),
-      classNum: Number(studentObj.classNum),
-      studentNum: Number(studentObj.studentNum),
-      ownerUid: fbState.uid,
-      updatedAt: serverTimestamp()
-    },
-    { merge: true }
-  );
+  const { ref, update } = fbState.sdk;
+  await update(ref(fbState.db, `fitnessClassroom/students/${studentId}`), {
+    id: studentId,
+    name: String(studentObj.name).slice(0, 40),
+    grade: Number(studentObj.grade),
+    classNum: Number(studentObj.classNum),
+    studentNum: Number(studentObj.studentNum),
+    updatedAt: Date.now()
+  });
 }
 
 async function syncRecordToFirestore(studentId, dateStr, rec) {
   if (!fbState.connected) return;
-  const { doc, setDoc, serverTimestamp } = fbState.sdk;
-  if (store[studentId]) await syncStudentDocToFirestore(studentId, store[studentId]);
-  await setDoc(doc(fbState.db, "students", studentId, "records", dateStr), {
+  const { ref, set } = fbState.sdk;
+  if (store[studentId]) {
+    await syncStudentDocToFirestore(studentId, store[studentId]);
+  }
+  await set(ref(fbState.db, `fitnessClassroom/students/${studentId}/records/${dateStr}`), {
     run: Number(rec.run),
     jump: Math.round(Number(rec.jump)),
     mood: String(rec.mood || "😄 상쾌해요").slice(0, 30),
     note: String(rec.note || "").slice(0, 100),
     updatedBy: fbState.uid,
-    updatedAt: serverTimestamp()
+    updatedAt: Date.now()
   });
 }
 
 async function deleteRecordFromFirestore(studentId, dateStr) {
   if (!fbState.connected) return;
-  const { doc, deleteDoc } = fbState.sdk;
-  await deleteDoc(doc(fbState.db, "students", studentId, "records", dateStr));
+  const { ref, remove } = fbState.sdk;
+  await remove(ref(fbState.db, `fitnessClassroom/students/${studentId}/records/${dateStr}`));
 }
 
 async function deleteStudentFromFirestore(studentId) {
   if (!fbState.connected) return;
-  const { doc, deleteDoc } = fbState.sdk;
-  await deleteDoc(doc(fbState.db, "students", studentId));
+  const { ref, remove } = fbState.sdk;
+  await remove(ref(fbState.db, `fitnessClassroom/students/${studentId}`));
 }
 
 async function uploadAllLocalDataToFirestore() {
   if (!fbState.connected) return;
-  for (const [sId, sObj] of Object.entries(store)) {
-    await syncStudentDocToFirestore(sId, sObj);
-    for (const [dateStr, rec] of Object.entries(sObj.records || {})) {
-      await syncRecordToFirestore(sId, dateStr, rec);
-    }
-  }
+  const { ref, set } = fbState.sdk;
+  await set(ref(fbState.db, "fitnessClassroom/students"), store);
 }
 
 function syncAllUI() {
