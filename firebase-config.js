@@ -12,10 +12,10 @@
 // ============================================================================
 
 window.DEFAULT_FIREBASE_CONFIG = {
-  apiKey: "AIzaSy...", // 선택 (웹 앱 추가 시 발급)
+  apiKey: "AIzaSyBcGcKzlX2ul2YPlyL1624lwtDP2PU3", // 선택 (웹 앱 추가 시 발급)
   authDomain: "프로젝트ID.firebaseapp.com",
-  databaseURL: "https://여기에-복사한-실시간DB-주소.firebaseio.com", // ★ 필수!
-  projectId: "프로젝트ID",
+  databaseURL: "https://paps-7b8bf-default-rtdb.firebaseio.com", // ★ 필수!
+  projectId: "p7b8bfaps-",
   storageBucket: "",
   messagingSenderId: "",
   appId: ""
