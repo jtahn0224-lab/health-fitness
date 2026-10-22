@@ -21,4 +21,3 @@ window.DEFAULT_FIREBASE_CONFIG = {
   appId: "1:1042198758333:web:cdc3fc9254de164e7108d4",
   measurementId: "G-V2JXQFR031"
 };
-

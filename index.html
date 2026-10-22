@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>건강체력교실</title>
   <style>[hidden] { display: none !important; }</style>
-  <link rel="stylesheet" href="style.css?v=20261022_preset" />
+  <link rel="stylesheet" href="style.css?v=20261022_syncfix" />
 </head>
 <body>
   <div class="mobile-shell">
@@ -863,6 +863,9 @@
 
           <div class="sub-form">
             <button type="submit" class="btn-save-main btn-full">☁️ 실시간 DB 연결 시작</button>
+            <button type="button" id="copyStudentShareUrlBtn" class="tool-btn primary" hidden>
+              📲 학생 휴대폰 자동연동 링크 복사 (카톡·QR 공유용)
+            </button>
             <button type="button" id="seedToCloudBtn" class="tool-btn" hidden>📤 현재 학생·기록 데이터 서버에 업로드</button>
             <button type="button" id="disconnectFirebaseBtn" class="tool-btn danger" hidden>연결 해제</button>
           </div>
@@ -874,7 +877,7 @@
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   </div>
 
-  <script src="firebase-config.js?v=20261022_preset"></script>
-  <script src="app.js?v=20261022_preset"></script>
+  <script src="firebase-config.js?v=20261022_syncfix"></script>
+  <script src="app.js?v=20261022_syncfix"></script>
 </body>
 </html>

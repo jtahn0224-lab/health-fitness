@@ -839,10 +839,14 @@ function initRecordForm() {
     syncAllUI();
 
     if (fbState.connected) {
-      await syncRecordToFirestore(currentStudentId, currentDateStr, updatedDayObj);
-      showToast(`☁️ ${currentDateStr.slice(5)} [${sessionLabel}] 클라우드 저장 완료!`);
+      try {
+        await syncRecordToFirestore(currentStudentId, currentDateStr, updatedDayObj);
+        showToast(`☁️ ${currentDateStr.slice(5)} [${sessionLabel}] 실시간 서버 저장 완료!`);
+      } catch (err) {
+        showToast(`⚠️ 서버 쓰기 실패: Firebase [규칙(Rules)] 탭에서 read/write를 true로 설정해 주세요!`);
+      }
     } else {
-      showToast(`🎉 ${currentDateStr.slice(5)} [${sessionLabel}] 운동 기록 저장 완료!`);
+      showToast(`📱 ${currentDateStr.slice(5)} [${sessionLabel}] 기기 내부 저장됨 (서버 미연결 상태)`);
     }
   });
 
@@ -1961,7 +1965,22 @@ function normalizeRtdbConfig(rawCfg) {
   if (!rawCfg) return null;
   let databaseURL = (rawCfg.databaseURL || "").trim().replace(/\/+$/, "");
   let projectId = (rawCfg.projectId || "").trim();
-  const apiKey = (rawCfg.apiKey || "").trim();
+  let apiKey = (rawCfg.apiKey || "").trim();
+
+  // 예시(placeholder) 텍스트 필터링
+  if (
+    databaseURL.includes("여기에-복사한") ||
+    databaseURL.includes("프로젝트ID") ||
+    databaseURL === "https://"
+  ) {
+    databaseURL = "";
+  }
+  if (projectId === "프로젝트ID" || projectId === "project-id") {
+    projectId = "";
+  }
+  if (apiKey === "AIzaSy..." || apiKey === "AIza...") {
+    apiKey = "";
+  }
 
   if (!projectId && databaseURL) {
     const m = databaseURL.match(/https?:\/\/([a-zA-Z0-9-]+?)(?:-default-rtdb)?\./);
@@ -1972,13 +1991,35 @@ function normalizeRtdbConfig(rawCfg) {
   }
   if (!databaseURL) return null;
 
-  const authDomain = (rawCfg.authDomain || "").trim() || (projectId ? `${projectId}.firebaseapp.com` : "");
+  const authDomain =
+    (rawCfg.authDomain && !rawCfg.authDomain.includes("프로젝트ID") ? rawCfg.authDomain.trim() : "") ||
+    (projectId ? `${projectId}.firebaseapp.com` : "");
   const appId = (rawCfg.appId || "").trim();
 
   return { apiKey, authDomain, databaseURL, projectId: projectId || "rtdb-project", appId };
 }
 
 function loadSavedFirebaseConfig() {
+  // 1순위: 학생이 공유 링크(?db=...)로 접속한 경우 주소창 파라미터에서 즉시 읽어 기기에 저장
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const urlDb = params.get("db") || params.get("databaseURL");
+    const urlPid = params.get("pid") || params.get("projectId");
+    const urlKey = params.get("key") || params.get("apiKey");
+    if (urlDb || urlPid) {
+      const fromUrl = normalizeRtdbConfig({
+        databaseURL: urlDb || "",
+        projectId: urlPid || "",
+        apiKey: urlKey || ""
+      });
+      if (fromUrl) {
+        localStorage.setItem(FB_CONFIG_STORAGE_KEY, JSON.stringify(fromUrl));
+        return fromUrl;
+      }
+    }
+  } catch (e) {}
+
+  // 2순위: 브라우저 localStorage에 저장된 설정
   try {
     const raw = localStorage.getItem(FB_CONFIG_STORAGE_KEY);
     if (raw) {
@@ -1986,6 +2027,8 @@ function loadSavedFirebaseConfig() {
       if (parsed) return parsed;
     }
   } catch (e) {}
+
+  // 3순위: firebase-config.js 파일에 직접 입력된 DEFAULT_FIREBASE_CONFIG
   return normalizeRtdbConfig(DEFAULT_FIREBASE_CONFIG);
 }
 
@@ -2076,6 +2119,28 @@ function initFirebaseModal() {
     await connectToFirebase(normalized, false);
   });
 
+  const copyShareBtn = document.getElementById("copyStudentShareUrlBtn");
+  if (copyShareBtn) {
+    copyShareBtn.addEventListener("click", async () => {
+      const saved = loadSavedFirebaseConfig();
+      if (!saved || !saved.databaseURL) {
+        showToast("먼저 실시간 DB 연결을 완료해 주세요.");
+        return;
+      }
+      const shareUrl = new URL(window.location.href);
+      shareUrl.searchParams.set("db", saved.databaseURL);
+      if (saved.projectId) shareUrl.searchParams.set("pid", saved.projectId);
+      if (saved.apiKey) shareUrl.searchParams.set("key", saved.apiKey);
+
+      try {
+        await navigator.clipboard.writeText(shareUrl.toString());
+        showToast("📲 학생 휴대폰 자동연동 링크가 복사되었습니다! 카톡이나 QR로 공유하세요.");
+      } catch (e) {
+        window.prompt("아래 주소를 복사하여 학생들에게 공유하세요:", shareUrl.toString());
+      }
+    });
+  }
+
   document.getElementById("seedToCloudBtn").addEventListener("click", async () => {
     if (!fbState.connected) return;
     await uploadAllLocalDataToFirestore();
@@ -2136,6 +2201,8 @@ async function connectToFirebase(rawConfig, isSilent = false) {
     startRealtimeListeners();
 
     statusBox.textContent = `✅ 실시간 DB 연결됨 (${config.databaseURL})`;
+    const shareBtn = document.getElementById("copyStudentShareUrlBtn");
+    if (shareBtn) shareBtn.hidden = false;
     document.getElementById("seedToCloudBtn").hidden = false;
     document.getElementById("disconnectFirebaseBtn").hidden = false;
 
@@ -2162,6 +2229,8 @@ function disconnectFirebase() {
   localStorage.removeItem(FB_CONFIG_STORAGE_KEY);
   updateCloudBadgeUI(false);
   document.getElementById("fbConnectionDetail").textContent = "현재: 로컬 저장소 모드로 동작 중";
+  const shareBtn = document.getElementById("copyStudentShareUrlBtn");
+  if (shareBtn) shareBtn.hidden = true;
   document.getElementById("seedToCloudBtn").hidden = true;
   document.getElementById("disconnectFirebaseBtn").hidden = true;
 }
@@ -2182,6 +2251,23 @@ function startRealtimeListeners() {
   if (!fbState.connected) return;
   const { ref, onValue } = fbState.sdk;
   const studentsRef = ref(fbState.db, "fitnessClassroom/students");
+  const goalsRef = ref(fbState.db, "fitnessClassroom/goals");
+
+  onValue(goalsRef, (snapshot) => {
+    const gVal = snapshot.val();
+    if (gVal) {
+      goals = {
+        weeklyDays: Number(gVal.weeklyDays || goals.weeklyDays),
+        weeklyRun: Number(gVal.weeklyRun || goals.weeklyRun),
+        weeklyJump: Number(gVal.weeklyJump || goals.weeklyJump),
+        run: Number(gVal.run || goals.run),
+        jump: Number(gVal.jump || goals.jump)
+      };
+      saveGoals();
+      updateGoalTexts();
+      syncAllUI();
+    }
+  });
 
   fbState.unsubStudents = onValue(
     studentsRef,
