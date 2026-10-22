@@ -1010,6 +1010,29 @@ function initTeacherControls() {
   });
 
   document.getElementById("exportCsvBtn").addEventListener("click", exportClassStatsToCSV);
+
+  const tPrevBtn = document.getElementById("teacherPrevMonthBtn");
+  const tNextBtn = document.getElementById("teacherNextMonthBtn");
+  if (tPrevBtn) {
+    tPrevBtn.addEventListener("click", () => {
+      currentCalMonth--;
+      if (currentCalMonth < 1) {
+        currentCalMonth = 12;
+        currentCalYear--;
+      }
+      syncAllUI();
+    });
+  }
+  if (tNextBtn) {
+    tNextBtn.addEventListener("click", () => {
+      currentCalMonth++;
+      if (currentCalMonth > 12) {
+        currentCalMonth = 1;
+        currentCalYear++;
+      }
+      syncAllUI();
+    });
+  }
 }
 
 function renderTeacherDashboard() {
@@ -1144,7 +1167,176 @@ function renderTeacherDashboard() {
     });
   });
 
+  renderTeacherCalendar(filtered);
+  renderTeacherSelectedDayDetail(currentDateStr, filtered);
   renderDailyAttendanceChart(allStudents);
+}
+
+function renderTeacherCalendar(studentsList) {
+  const titleEl = document.getElementById("teacherCalendarMonthTitle");
+  const gridEl = document.getElementById("teacherCalendarGrid");
+  if (!gridEl) return;
+
+  if (titleEl) {
+    titleEl.textContent = `${currentCalYear}년 ${currentCalMonth}월 전체 참여 달력`;
+  }
+
+  const firstDay = new Date(currentCalYear, currentCalMonth - 1, 1).getDay();
+  const daysInMonth = new Date(currentCalYear, currentCalMonth, 0).getDate();
+
+  let html = "";
+  for (let i = 0; i < firstDay; i++) {
+    html += `<div class="cal-cell empty"></div>`;
+  }
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = `${currentCalYear}-${String(currentCalMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const isSelected = dateStr === currentDateStr;
+
+    // 이 날짜에 참여한 모든 학생 수집
+    const participants = [];
+    let allGoalsMet = true;
+    studentsList.forEach((s) => {
+      const rec = s.records?.[dateStr];
+      if (isParticipated(rec)) {
+        const gMet = isGoalMet(rec);
+        if (!gMet) allGoalsMet = false;
+        participants.push({ student: s, rec, goalMet: gMet });
+      }
+    });
+
+    const hasAny = participants.length > 0;
+    let cellClasses = "cal-cell";
+    if (hasAny) {
+      cellClasses += allGoalsMet ? " goal-met" : " participated";
+    }
+    if (isSelected) cellClasses += " selected";
+
+    const maxVisibleInCell = 4;
+    const visibleItems = participants.slice(0, maxVisibleInCell);
+    const hiddenCount = participants.length - visibleItems.length;
+    const tooltipNames = participants
+      .map((p) => `${formatStudentLabel(p.student)} (달리기 ${p.rec.run}바퀴, 줄넘기 ${p.rec.jump}개)`)
+      .join("\n");
+
+    const namesHtml = visibleItems
+      .map(
+        (p) =>
+          `<span class="t-std-pill ${p.goalMet ? "gold" : ""}">${p.goalMet ? "⭐" : "✅"}${escapeHtml(p.student.name)}</span>`
+      )
+      .join("");
+
+    const moreHtml = hiddenCount > 0 ? `<span class="t-std-more">+${hiddenCount}명 더보기</span>` : "";
+
+    html += `
+      <button type="button" class="${cellClasses}" data-date="${dateStr}" title="${escapeHtml(tooltipNames)}">
+        <div class="cal-cell-top">
+          <span class="cal-day-num">${day}</span>
+          ${hasAny ? `<span class="t-cal-count">${participants.length}명</span>` : ""}
+        </div>
+        <div class="t-cal-names">
+          ${namesHtml}
+          ${moreHtml}
+        </div>
+      </button>
+    `;
+  }
+
+  gridEl.innerHTML = html;
+
+  gridEl.querySelectorAll(".cal-cell[data-date]").forEach((cell) => {
+    cell.addEventListener("click", () => {
+      currentDateStr = cell.dataset.date;
+      renderTeacherCalendar(studentsList);
+      renderTeacherSelectedDayDetail(currentDateStr, studentsList);
+    });
+  });
+}
+
+function renderTeacherSelectedDayDetail(dateStr, studentsList) {
+  const titleEl = document.getElementById("teacherSelectedDayTitle");
+  const badgeEl = document.getElementById("teacherSelectedDayBadge");
+  const listEl = document.getElementById("teacherSelectedDayList");
+  if (!listEl) return;
+
+  const [, m, d] = dateStr.split("-");
+  if (titleEl) {
+    titleEl.textContent = `🗓️ ${Number(m)}월 ${Number(d)}일 참여 학생 명단`;
+  }
+
+  const participants = [];
+  const absentees = [];
+
+  studentsList.forEach((s) => {
+    const rec = s.records?.[dateStr];
+    if (isParticipated(rec)) {
+      participants.push({ student: s, rec, goalMet: isGoalMet(rec) });
+    } else {
+      absentees.push(s);
+    }
+  });
+
+  if (badgeEl) {
+    badgeEl.textContent = `${participants.length} / ${studentsList.length}명 참여`;
+    badgeEl.className = participants.length > 0 ? "status-badge done" : "status-badge";
+  }
+
+  let html = "";
+  if (participants.length === 0) {
+    html += `<div style="padding:14px; text-align:center; color:var(--text-muted); font-size:0.82rem; background:var(--surface-soft); border-radius:10px;">이 날짜에 운동을 기록한 학생이 없습니다.</div>`;
+  } else {
+    html += participants
+      .map(({ student, rec, goalMet }) => {
+        const badge = goalMet ? "⭐" : "✅";
+        return `
+          <div class="t-day-std-item">
+            <div class="t-day-std-info">
+              <div class="t-day-std-title">
+                <span class="student-code-tag">${formatStudentCode(student)}</span>
+                <span>${badge} ${escapeHtml(student.name)}</span>
+                <small style="color:var(--text-muted)">${escapeHtml(rec.mood || "")}</small>
+              </div>
+              <div class="t-day-std-note">💬 ${escapeHtml(rec.note || "메모 없음")}</div>
+            </div>
+            <div class="t-day-std-right">
+              <span class="pill-run">🏃 ${rec.run}</span>
+              <span class="pill-jump">🪢 ${rec.jump}</span>
+              <button type="button" class="btn-table edit-day-std-btn" data-id="${student.id}" data-date="${dateStr}">수정</button>
+            </div>
+          </div>
+        `;
+      })
+      .join("");
+  }
+
+  if (absentees.length > 0) {
+    html += `
+      <div class="t-absent-box">
+        <span class="t-absent-label">미참여 학생 ${absentees.length}명 (터치 시 대리 기록 입력)</span>
+        <div class="t-absent-chips">
+          ${absentees
+            .map(
+              (s) =>
+                `<button type="button" class="t-absent-chip edit-day-std-btn" data-id="${s.id}" data-date="${dateStr}">➕ ${formatStudentCode(s)} ${escapeHtml(s.name)}</button>`
+            )
+            .join("")}
+        </div>
+      </div>
+    `;
+  }
+
+  listEl.innerHTML = html;
+
+  listEl.querySelectorAll(".edit-day-std-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      currentStudentId = btn.dataset.id;
+      currentDateStr = btn.dataset.date;
+      syncAllUI();
+      switchTab("record");
+      const s = store[currentStudentId];
+      if (s) showToast(`✏️ ${formatStudentLabel(s)} 학생의 ${currentDateStr.slice(5)} 기록 화면으로 이동`);
+    });
+  });
 }
 
 function renderDailyAttendanceChart(allStudents) {
