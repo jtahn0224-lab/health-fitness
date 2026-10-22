@@ -1170,6 +1170,26 @@ function initTeacherControls() {
       syncAllUI();
     });
   }
+
+  const viewTableBtn = document.getElementById("viewModeTableBtn");
+  const viewCardBtn = document.getElementById("viewModeCardBtn");
+  const tableWrap = document.getElementById("rosterTableWrap");
+  const cardWrap = document.getElementById("teacherStudentCards");
+
+  if (viewTableBtn && viewCardBtn && tableWrap && cardWrap) {
+    viewTableBtn.addEventListener("click", () => {
+      viewTableBtn.classList.add("active");
+      viewCardBtn.classList.remove("active");
+      tableWrap.hidden = false;
+      cardWrap.hidden = true;
+    });
+    viewCardBtn.addEventListener("click", () => {
+      viewCardBtn.classList.add("active");
+      viewTableBtn.classList.remove("active");
+      tableWrap.hidden = true;
+      cardWrap.hidden = false;
+    });
+  }
 }
 
 function renderTeacherDashboard() {
@@ -1214,6 +1234,20 @@ function renderTeacherDashboard() {
 
   document.getElementById("teacherTableMonth").textContent = `${currentCalYear}년 ${currentCalMonth}월`;
 
+  // 학년별 등록 학생 수 집계 배지 표시
+  const gradeSummaryEl = document.getElementById("rosterGradeSummary");
+  if (gradeSummaryEl) {
+    const g1 = allStudents.filter((s) => Number(s.grade) === 1).length;
+    const g2 = allStudents.filter((s) => Number(s.grade) === 2).length;
+    const g3 = allStudents.filter((s) => Number(s.grade) === 3).length;
+    gradeSummaryEl.innerHTML = `
+      <span class="grade-cnt-badge total">총 등록 ${totalCount}명</span>
+      <span class="grade-cnt-badge">1학년 ${g1}명</span>
+      <span class="grade-cnt-badge">2학년 ${g2}명</span>
+      <span class="grade-cnt-badge">3학년 ${g3}명</span>
+    `;
+  }
+
   const gradeFilter = document.getElementById("filterGrade").value;
   const sortBy = document.getElementById("sortBySelect").value;
   const queryText = document.getElementById("studentSearchInput").value.trim().toLowerCase();
@@ -1235,6 +1269,55 @@ function renderTeacherDashboard() {
       return a.grade - b.grade || a.classNum - b.classNum || a.studentNum - b.studentNum;
     });
 
+  // 1) 전체 등록 학생 명렬표 (위에서 아래로 쭉 보는 테이블) 렌더링
+  const tbodyEl = document.getElementById("teacherTableBody");
+  if (tbodyEl) {
+    if (filtered.length === 0) {
+      tbodyEl.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:18px; color:var(--text-muted);">검색 조건에 맞는 등록 학생이 없습니다.</td></tr>`;
+    } else {
+      tbodyEl.innerHTML = filtered
+        .map((s, idx) => {
+          const st = s.stats;
+          const todayBadge = st.participatedToday
+            ? `<span class="status-badge done">✅ 완료</span>`
+            : `<span class="status-badge">미기록</span>`;
+
+          let weekBadge = `<span class="status-badge done">진행 ${st.weekDays}/${goals.weeklyDays}일</span>`;
+          if (st.weeklyGoalMet) {
+            weekBadge = `<span class="status-badge gold">🏆 달성 (${st.weekDays}/${goals.weeklyDays}일)</span>`;
+          } else if (st.weekDays === 0) {
+            weekBadge = `<span class="status-badge warn">미참여 (0/${goals.weeklyDays}일)</span>`;
+          }
+
+          return `
+            <tr>
+              <td class="roster-no">${idx + 1}</td>
+              <td><span class="student-code-tag">${formatStudentCode(s)}</span></td>
+              <td>${s.grade}학년 ${s.classNum}반 ${s.studentNum}번</td>
+              <td><span class="roster-name">${escapeHtml(s.name)}</span></td>
+              <td>${todayBadge}</td>
+              <td>${weekBadge}</td>
+              <td><strong>${st.monthDays}일</strong> <small style="color:var(--text-muted)">(⭐${st.goalDays}일)</small></td>
+              <td>
+                <span class="text-run">🏃 ${st.totalRun}바퀴</span> ·
+                <span class="text-jump">🪢 ${st.totalJump.toLocaleString()}개</span>
+              </td>
+              <td style="color:var(--text-muted)">${st.lastDate === "-" ? "-" : st.lastDate.slice(5)}</td>
+              <td>
+                <div class="std-actions">
+                  <button type="button" class="btn-table edit-student-btn" data-id="${s.id}">✏️ 기록</button>
+                  <button type="button" class="btn-table view-student-btn" data-id="${s.id}">📅 달력</button>
+                  <button type="button" class="btn-table del del-student-btn" data-id="${s.id}">삭제</button>
+                </div>
+              </td>
+            </tr>
+          `;
+        })
+        .join("");
+    }
+  }
+
+  // 2) 카드형 보기 렌더링
   const cardContainer = document.getElementById("teacherStudentCards");
   if (filtered.length === 0) {
     cardContainer.innerHTML = `<div style="text-align:center; padding:18px; color:var(--text-muted); font-size:0.84rem;">검색 조건에 맞는 학생이 없습니다.</div>`;
@@ -1265,6 +1348,7 @@ function renderTeacherDashboard() {
                 <span class="text-jump">🪢 1주 ${st.weekJump.toLocaleString()}/${goals.weeklyJump.toLocaleString()}개</span>
               </div>
               <div class="std-actions">
+                <button type="button" class="btn-table edit-student-btn" data-id="${s.id}">✏️ 기록</button>
                 <button type="button" class="btn-table view-student-btn" data-id="${s.id}">📅 달력</button>
                 <button type="button" class="btn-table del del-student-btn" data-id="${s.id}">삭제</button>
               </div>
@@ -1275,7 +1359,18 @@ function renderTeacherDashboard() {
       .join("");
   }
 
-  cardContainer.querySelectorAll(".view-student-btn").forEach((btn) => {
+  const rosterSection = document.querySelector(".roster-section-card") || cardContainer;
+
+  rosterSection.querySelectorAll(".edit-student-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      currentStudentId = btn.dataset.id;
+      syncAllUI();
+      switchTab("record");
+      showToast(`✏️ ${formatStudentLabel(store[currentStudentId])} 기록 입력 화면으로 이동`);
+    });
+  });
+
+  rosterSection.querySelectorAll(".view-student-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       currentStudentId = btn.dataset.id;
       syncAllUI();
@@ -1284,7 +1379,7 @@ function renderTeacherDashboard() {
     });
   });
 
-  cardContainer.querySelectorAll(".del-student-btn").forEach((btn) => {
+  rosterSection.querySelectorAll(".del-student-btn").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const targetId = btn.dataset.id;
       if (Object.keys(store).length <= 1) {

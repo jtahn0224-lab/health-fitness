@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>건강체력교실</title>
   <style>[hidden] { display: none !important; }</style>
-  <link rel="stylesheet" href="style.css?v=20261022_cal" />
+  <link rel="stylesheet" href="style.css?v=20261022_roster" />
 </head>
 <body>
   <div class="mobile-shell">
@@ -439,14 +439,46 @@
           </div>
         </div>
 
-        <!-- 모바일 최적화 학생별 현황 리스트 -->
-        <div class="compact-card">
-          <div class="section-title-row">
-            <h3>📋 학생별 누적 현황 (<span id="teacherTableMonth">2026년 10월</span>)</h3>
+        <!-- ================================================================
+             👥 현재 등록된 전체 학생 명단 (한눈에 쭉 보는 출석부·명렬표)
+             ================================================================ -->
+        <div class="compact-card roster-section-card">
+          <div class="roster-header-row">
+            <div>
+              <h3>👥 현재 등록된 학생 명단 (<span id="teacherTableMonth">2026년 10월</span> 기준)</h3>
+              <div id="rosterGradeSummary" class="roster-grade-badges">
+                전체 0명
+              </div>
+            </div>
+            <div class="roster-view-switch">
+              <button type="button" id="viewModeTableBtn" class="btn-mini-ghost active">📋 명단 표로 쭉 보기</button>
+              <button type="button" id="viewModeCardBtn" class="btn-mini-ghost">🪪 카드로 보기</button>
+            </div>
           </div>
-          <div id="teacherStudentCards" class="student-card-list"></div>
-          <!-- 기존 테이블 호환용 숨김 tbody -->
-          <table hidden><tbody id="teacherTableBody"></tbody></table>
+
+          <!-- 1) 전체 학생 명렬표 (기본 표시: 위에서 아래로 쭉 한눈에 확인) -->
+          <div id="rosterTableWrap" class="roster-table-wrap">
+            <table class="roster-table">
+              <thead>
+                <tr>
+                  <th>No</th>
+                  <th>학번</th>
+                  <th>학년·반·번호</th>
+                  <th>이름</th>
+                  <th>오늘</th>
+                  <th>1주 목표</th>
+                  <th>이달 참여</th>
+                  <th>누적 운동량</th>
+                  <th>최근 기록</th>
+                  <th>관리</th>
+                </tr>
+              </thead>
+              <tbody id="teacherTableBody"></tbody>
+            </table>
+          </div>
+
+          <!-- 2) 학생별 카드형 보기 (전환 시 표시) -->
+          <div id="teacherStudentCards" class="student-card-list" hidden></div>
         </div>
 
         <!-- 최근 7일 참여 추이 미니 차트 -->
@@ -805,7 +837,7 @@
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   </div>
 
-  <script src="firebase-config.js?v=20261022_cal"></script>
-  <script src="app.js?v=20261022_cal"></script>
+  <script src="firebase-config.js?v=20261022_roster"></script>
+  <script src="app.js?v=20261022_roster"></script>
 </body>
 </html>

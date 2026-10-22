@@ -969,6 +969,112 @@ input[type="number"] {
   cursor: pointer;
 }
 
+.btn-table.del {
+  color: var(--danger);
+  border-color: #fecaca;
+  background: #fff5f5;
+}
+
+/* 👥 교사용 현재 등록된 전체 학생 명단 (명렬표 테이블) 스타일 */
+.roster-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.roster-grade-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 5px;
+}
+
+.grade-cnt-badge {
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.grade-cnt-badge.total {
+  background: var(--primary-soft);
+  border-color: #bfdbfe;
+  color: var(--primary);
+}
+
+.roster-view-switch {
+  display: flex;
+  gap: 4px;
+}
+
+.btn-mini-ghost.active {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 800;
+}
+
+.roster-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.roster-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  min-width: 640px;
+}
+
+.roster-table th {
+  background: var(--surface-soft);
+  color: var(--text-muted);
+  font-weight: 800;
+  font-size: 0.72rem;
+  text-align: left;
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.roster-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.roster-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.roster-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.roster-no {
+  color: var(--text-muted);
+  font-weight: 800;
+  font-size: 0.74rem;
+}
+
+.roster-name {
+  font-weight: 900;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
 /* 교사용 전체 학생 참여 달력 스타일 */
 .teacher-cal-layout {
   display: flex;
