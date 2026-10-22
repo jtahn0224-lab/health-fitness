@@ -201,6 +201,7 @@ async function bootApp() {
   initRecordForm();
   initCalendarControls();
   initTeacherControls();
+  initCalorieCalculator();
   initFirebaseModal();
   updateGoalTexts();
 
@@ -507,15 +508,17 @@ function initTabs() {
 }
 
 function switchTab(tabName) {
-  const tabs = ["record", "calendar", "teacher"];
+  const tabs = ["record", "calendar", "calorie", "teacher"];
   const mapBtn = {
     record: "tabBtnRecord",
     calendar: "tabBtnCalendar",
+    calorie: "tabBtnCalorie",
     teacher: "tabBtnTeacher"
   };
   const mapPanel = {
     record: "panelRecord",
     calendar: "panelCalendar",
+    calorie: "panelCalorie",
     teacher: "panelTeacher"
   };
 
@@ -523,14 +526,20 @@ function switchTab(tabName) {
     const active = t === tabName;
     const btn = document.getElementById(mapBtn[t]);
     const panel = document.getElementById(mapPanel[t]);
-    btn.classList.toggle("active", active);
-    btn.setAttribute("aria-selected", String(active));
-    panel.hidden = !active;
+    if (btn) {
+      btn.classList.toggle("active", active);
+      btn.setAttribute("aria-selected", String(active));
+    }
+    if (panel) {
+      panel.hidden = !active;
+    }
   });
 
   if (tabName === "calendar") {
     renderCalendar();
     renderSelectedDayDetail(currentDateStr);
+  } else if (tabName === "calorie") {
+    renderCalorieTab();
   } else if (tabName === "teacher") {
     renderTeacherDashboard();
   }
@@ -1865,7 +1874,309 @@ function syncAllUI() {
   renderRecentList();
   renderCalendar();
   renderSelectedDayDetail(currentDateStr);
+  renderCalorieTab();
   renderTeacherDashboard();
+}
+
+// ============================================================================
+// [탭 4] 🍔 음식 평균 열량 & 소모 운동량 계산기
+// ============================================================================
+const FOOD_CALORIE_DB = [
+  { name: "떡볶이", icon: "🌶️", unit: "1인분", kcal: 500, popular: true, keywords: ["떡볶이", "엽떡", "로제떡볶이", "국물떡볶이"] },
+  { name: "라면", icon: "🍜", unit: "1봉지", kcal: 500, popular: true, keywords: ["라면", "신라면", "진라면", "짜파게티", "불닭볶음면", "불닭"] },
+  { name: "컵라면 (소컵)", icon: "🥡", unit: "1개", kcal: 300, popular: false, keywords: ["컵라면", "소컵", "육개장"] },
+  { name: "치킨 (후라이드 2조각)", icon: "🍗", unit: "2조각", kcal: 460, popular: true, keywords: ["치킨", "후라이드", "통닭", "순살치킨"] },
+  { name: "양념치킨 (2조각)", icon: "🍗", unit: "2조각", kcal: 540, popular: false, keywords: ["양념치킨", "뿌링클", "간장치킨"] },
+  { name: "햄버거 (단품)", icon: "🍔", unit: "1개", kcal: 520, popular: true, keywords: ["햄버거", "버거", "불고기버거", "싸이버거", "새우버거", "치즈버거"] },
+  { name: "햄버거 세트", icon: "🍔", unit: "1세트", kcal: 920, popular: false, keywords: ["햄버거세트", "버거세트"] },
+  { name: "피자 (1조각)", icon: "🍕", unit: "1조각", kcal: 300, popular: true, keywords: ["피자", "페퍼로니피자", "콤비네이션피자", "치즈피자", "고구마피자"] },
+  { name: "마라탕", icon: "🍲", unit: "1인분", kcal: 650, popular: true, keywords: ["마라탕", "마라샹궈"] },
+  { name: "삼각김밥", icon: "🍙", unit: "1개", kcal: 200, popular: true, keywords: ["삼각김밥", "주먹밥"] },
+  { name: "김밥", icon: "🍙", unit: "1줄", kcal: 450, popular: true, keywords: ["김밥", "참치김밥", "치즈김밥"] },
+  { name: "핫도그", icon: "🌭", unit: "1개", kcal: 280, popular: true, keywords: ["핫도그", "명랑핫도그", "콘도그"] },
+  { name: "탕후루", icon: "🍡", unit: "1꼬치", kcal: 200, popular: true, keywords: ["탕후루", "과일탕후루"] },
+  { name: "버블티 (타로/흑당)", icon: "🧋", unit: "1잔", kcal: 350, popular: true, keywords: ["버블티", "밀크티", "공차", "흑당버블티", "타로밀크티"] },
+  { name: "감자튀김", icon: "🍟", unit: "1개", kcal: 330, popular: false, keywords: ["감자튀김", "포테이토"] },
+  { name: "순대", icon: "🍽️", unit: "1인분", kcal: 400, popular: false, keywords: ["순대"] },
+  { name: "튀김 (3개)", icon: "🍤", unit: "3개", kcal: 300, popular: false, keywords: ["튀김", "김말이", "오징어튀김", "고구마튀김"] },
+  { name: "어묵 (1꼬치)", icon: "🍢", unit: "1꼬치", kcal: 70, popular: false, keywords: ["어묵", "오뎅"] },
+  { name: "토스트", icon: "🥪", unit: "1개", kcal: 350, popular: false, keywords: ["토스트", "이삭토스트"] },
+  { name: "샌드위치", icon: "🥪", unit: "1개", kcal: 320, popular: false, keywords: ["샌드위치"] },
+  { name: "짜장면", icon: "🍜", unit: "1그릇", kcal: 700, popular: false, keywords: ["짜장면", "자장면", "간짜장"] },
+  { name: "짬뽕", icon: "🍜", unit: "1그릇", kcal: 680, popular: false, keywords: ["짬뽕"] },
+  { name: "탕수육 (1인분)", icon: "🍖", unit: "1인분", kcal: 600, popular: false, keywords: ["탕수육", "꿔바로우"] },
+  { name: "돈까스", icon: "🍱", unit: "1인분", kcal: 750, popular: false, keywords: ["돈까스", "돈가스", "치즈돈까스"] },
+  { name: "삼겹살 (1인분)", icon: "🥩", unit: "1인분(200g)", kcal: 660, popular: false, keywords: ["삼겹살", "목살", "고기"] },
+  { name: "떡갈비/함박스테이크", icon: "🥩", unit: "1인분", kcal: 450, popular: false, keywords: ["떡갈비", "함박스테이크", "스테이크"] },
+  { name: "공기밥 (쌀밥)", icon: "🍚", unit: "1공기", kcal: 300, popular: false, keywords: ["공기밥", "밥", "쌀밥", "잡곡밥"] },
+  { name: "볶음밥 / 김치볶음밥", icon: "🍛", unit: "1그릇", kcal: 580, popular: false, keywords: ["볶음밥", "김치볶음밥", "새우볶음밥"] },
+  { name: "비빔밥", icon: "🥗", unit: "1그릇", kcal: 550, popular: false, keywords: ["비빔밥", "돌솥비빔밥"] },
+  { name: "카레라이스", icon: "🍛", unit: "1그릇", kcal: 580, popular: false, keywords: ["카레", "카레라이스"] },
+  { name: "제육덮밥", icon: "🍛", unit: "1그릇", kcal: 680, popular: false, keywords: ["제육덮밥", "제육볶음"] },
+  { name: "만두 (고기/김치 6개)", icon: "🥟", unit: "1인분(6개)", kcal: 360, popular: false, keywords: ["만두", "군만두", "찐만두"] },
+  { name: "감자칩 / 과자", icon: "🥔", unit: "1봉지", kcal: 340, popular: false, keywords: ["감자칩", "포카칩", "과자", "새우깡", "스낵"] },
+  { name: "초코파이 / 초코과자", icon: "🍪", unit: "1개", kcal: 170, popular: false, keywords: ["초코파이", "쿠키", "초코송이", "빼빼로"] },
+  { name: "초콜릿", icon: "🍫", unit: "1개", kcal: 220, popular: false, keywords: ["초콜릿", "가나초콜릿", "초코바"] },
+  { name: "아이스크림", icon: "🍦", unit: "1개", kcal: 220, popular: true, keywords: ["아이스크림", "메로나", "월드콘", "붕어싸만코", "구슬아이스크림"] },
+  { name: "붕어빵 (2개)", icon: "🐟", unit: "2개", kcal: 240, popular: false, keywords: ["붕어빵", "잉어빵"] },
+  { name: "호떡 / 와플", icon: "🧇", unit: "1개", kcal: 280, popular: false, keywords: ["호떡", "와플", "크로플"] },
+  { name: "도넛 / 빵", icon: "🍩", unit: "1개", kcal: 260, popular: false, keywords: ["도넛", "빵", "소보로빵", "단팥빵", "포켓몬빵"] },
+  { name: "조각케이크", icon: "🍰", unit: "1조각", kcal: 380, popular: false, keywords: ["케이크", "초코케이크", "치즈케이크"] },
+  { name: "콜라 / 사이다", icon: "🥤", unit: "1캔(250ml)", kcal: 110, popular: true, keywords: ["콜라", "사이다", "탄산음료", "환타"] },
+  { name: "초코우유 / 바나나우유", icon: "🥛", unit: "1팩", kcal: 195, popular: false, keywords: ["초코우유", "바나나우유", "딸기우유"] },
+  { name: "흰우유", icon: "🥛", unit: "1팩(200ml)", kcal: 130, popular: false, keywords: ["우유", "흰우유"] },
+  { name: "삶은 계란", icon: "🥚", unit: "1개", kcal: 80, popular: false, keywords: ["계란", "달걀", "구운계란"] },
+  { name: "바나나", icon: "🍌", unit: "1개", kcal: 100, popular: false, keywords: ["바나나"] },
+  { name: "사과", icon: "🍎", unit: "1개", kcal: 120, popular: false, keywords: ["사과", "과일"] }
+];
+
+let eatenFoods = [
+  { name: "떡볶이", icon: "🌶️", portion: 1, unit: "1인분", kcal: 500 }
+];
+
+function findFoodItemByQuery(query) {
+  const q = query.trim().toLowerCase();
+  if (!q) return null;
+
+  // 1. 정확히 일치하는 이름 또는 키워드
+  let found = FOOD_CALORIE_DB.find(
+    (item) => item.name.toLowerCase() === q || item.keywords.some((k) => k.toLowerCase() === q)
+  );
+  if (found) return found;
+
+  // 2. 부분 일치 검색
+  found = FOOD_CALORIE_DB.find(
+    (item) =>
+      item.name.toLowerCase().includes(q) ||
+      q.includes(item.name.split(" ")[0].toLowerCase()) ||
+      item.keywords.some((k) => q.includes(k.toLowerCase()) || k.toLowerCase().includes(q))
+  );
+  return found || null;
+}
+
+function initCalorieCalculator() {
+  const dataList = document.getElementById("foodDataList");
+  const chipsContainer = document.getElementById("popularFoodChips");
+  const searchForm = document.getElementById("foodSearchForm");
+  const searchInput = document.getElementById("foodSearchInput");
+  const portionSelect = document.getElementById("foodPortionSelect");
+  const clearBtn = document.getElementById("clearFoodListBtn");
+  const customKcalInput = document.getElementById("customKcalInput");
+  const goRecordBtn = document.getElementById("goRecordFromCalorieBtn");
+
+  if (!searchForm) return;
+
+  if (dataList) {
+    dataList.innerHTML = FOOD_CALORIE_DB.map(
+      (f) => `<option value="${escapeHtml(f.name)}">${f.icon} ${escapeHtml(f.name)} (${f.unit} 평균 ${f.kcal}kcal)</option>`
+    ).join("");
+  }
+
+  if (chipsContainer) {
+    const popularItems = FOOD_CALORIE_DB.filter((f) => f.popular);
+    chipsContainer.innerHTML = popularItems
+      .map(
+        (f) =>
+          `<button type="button" class="food-chip" data-name="${escapeHtml(f.name)}">${f.icon} ${escapeHtml(f.name)} <small>${f.kcal}</small></button>`
+      )
+      .join("");
+
+    chipsContainer.querySelectorAll(".food-chip").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        const foodObj = findFoodItemByQuery(chip.dataset.name);
+        if (foodObj) {
+          addFoodToBasket(foodObj, 1);
+        }
+      });
+    });
+  }
+
+  searchForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const rawName = searchInput.value.trim();
+    const portion = Number(portionSelect.value || 1);
+    if (!rawName) {
+      showToast("먹은 음식 이름을 입력해 주세요! (예: 떡볶이, 치킨)");
+      searchInput.focus();
+      return;
+    }
+
+    const matched = findFoodItemByQuery(rawName);
+    if (matched) {
+      addFoodToBasket(matched, portion);
+      searchInput.value = "";
+    } else {
+      // 사전에 없는 음식은 보편적 1인분 간식/식사 평균(350kcal)으로 추가하고 안내
+      const customItem = {
+        name: rawName,
+        icon: "🍽️",
+        unit: "1인분",
+        kcal: 350
+      };
+      addFoodToBasket(customItem, portion);
+      searchInput.value = "";
+      showToast(`🍽️ '${rawName}' 평균 추정치(${Math.round(350 * portion)}kcal)로 추가됨! 직접 열량 수정도 가능해요.`);
+    }
+  });
+
+  if (clearBtn) {
+    clearBtn.addEventListener("click", () => {
+      eatenFoods = [];
+      if (customKcalInput) customKcalInput.value = 0;
+      renderCalorieTab();
+      showToast("선택한 음식 목록을 비웠습니다.");
+    });
+  }
+
+  if (customKcalInput) {
+    customKcalInput.addEventListener("input", () => {
+      const manualKcal = Math.max(0, Number(customKcalInput.value || 0));
+      renderCalorieCalculations(manualKcal, "직접 입력한 열량");
+    });
+  }
+
+  if (goRecordBtn) {
+    goRecordBtn.addEventListener("click", () => {
+      switchTab("record");
+      showToast("✍️ 오늘 운동 기록 화면으로 이동했습니다!");
+    });
+  }
+}
+
+function addFoodToBasket(foodObj, portion = 1) {
+  const calcKcal = Math.round(foodObj.kcal * portion);
+  eatenFoods.push({
+    name: foodObj.name,
+    icon: foodObj.icon || "🍽️",
+    portion,
+    unit: foodObj.unit || "1인분",
+    kcal: calcKcal
+  });
+  renderCalorieTab();
+  showToast(`${foodObj.icon} ${foodObj.name} (${calcKcal}kcal) 추가!`);
+}
+
+function renderCalorieTab() {
+  const listEl = document.getElementById("eatenFoodList");
+  const customKcalInput = document.getElementById("customKcalInput");
+  if (!listEl) return;
+
+  if (eatenFoods.length === 0) {
+    listEl.innerHTML = `<li style="padding:10px; text-align:center; color:var(--text-muted); font-size:0.8rem; background:var(--surface-soft); border-radius:10px;">위에서 먹은 음식을 검색하거나 인기 음식 버튼을 눌러 추가해 보세요!</li>`;
+    const fallbackKcal = Number(customKcalInput?.value || 0);
+    renderCalorieCalculations(fallbackKcal, "선택된 음식 없음");
+    return;
+  }
+
+  let totalKcal = 0;
+  listEl.innerHTML = eatenFoods
+    .map((item, idx) => {
+      totalKcal += item.kcal;
+      const portionText = item.portion === 1 ? item.unit : `${item.portion}인분(개)`;
+      return `
+        <li class="eaten-food-item" data-idx="${idx}" title="클릭하여 삭제">
+          <span>${item.icon} ${escapeHtml(item.name)} <small style="color:var(--text-muted)">(${escapeHtml(portionText)})</small></span>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span class="eaten-kcal-badge">${item.kcal.toLocaleString()} kcal</span>
+            <small style="color:var(--text-muted)">✕</small>
+          </div>
+        </li>
+      `;
+    })
+    .join("");
+
+  listEl.querySelectorAll(".eaten-food-item").forEach((li) => {
+    li.addEventListener("click", () => {
+      const idx = Number(li.dataset.idx);
+      eatenFoods.splice(idx, 1);
+      renderCalorieTab();
+    });
+  });
+
+  if (customKcalInput) {
+    customKcalInput.value = totalKcal;
+  }
+
+  const summaryTitle =
+    eatenFoods.length === 1
+      ? `${eatenFoods[0].icon} ${eatenFoods[0].name} 평균 열량`
+      : `🍽️ 선택한 음식 ${eatenFoods.length}종 총 평균 열량`;
+
+  renderCalorieCalculations(totalKcal, summaryTitle);
+}
+
+function renderCalorieCalculations(totalKcal, summaryTitle) {
+  const titleEl = document.getElementById("selectedFoodSummaryTitle");
+  const totalEl = document.getElementById("totalFoodKcal");
+  const runLapsEl = document.getElementById("burnRunLaps");
+  const runMinsEl = document.getElementById("burnRunMins");
+  const jumpCountEl = document.getElementById("burnJumpCount");
+  const jumpMinsEl = document.getElementById("burnJumpMins");
+  const walkMinsEl = document.getElementById("burnWalkMins");
+  const sportMinsEl = document.getElementById("burnSportMins");
+  const stairMinsEl = document.getElementById("burnStairMins");
+
+  const todaySummaryEl = document.getElementById("todayWorkoutSummaryText");
+  const todayBurnedEl = document.getElementById("todayBurnedKcal");
+  const burnBarEl = document.getElementById("calorieBurnProgressBar");
+  const remainTextEl = document.getElementById("calorieRemainText");
+
+  if (!totalEl) return;
+
+  if (titleEl) titleEl.textContent = summaryTitle;
+  totalEl.textContent = `${totalKcal.toLocaleString()} kcal`;
+
+  // 중학생 평균 체중(약 52kg) 기준 운동별 소모 칼로리 환산
+  // 1) 운동장 트랙 달리기 1바퀴(200m) ≈ 15 kcal (분당 약 9 kcal)
+  const neededLaps = totalKcal > 0 ? (totalKcal / 15).toFixed(1).replace(/\.0$/, "") : "0";
+  const neededRunMins = Math.round(totalKcal / 9);
+
+  // 2) 줄넘기 100개 ≈ 12 kcal (분당 약 110개 = 13.2 kcal)
+  const neededJumps = Math.round((totalKcal / 12) * 10) * 10;
+  const neededJumpMins = Math.round(totalKcal / 13);
+
+  // 3) 빠르게 걷기 (분당 4.5 kcal), 축구·농구 (분당 8 kcal), 계단 오르기 (분당 7 kcal)
+  const walkMins = Math.round(totalKcal / 4.5);
+  const sportMins = Math.round(totalKcal / 8);
+  const stairMins = Math.round(totalKcal / 7);
+
+  if (runLapsEl) runLapsEl.textContent = `${neededLaps}바퀴`;
+  if (runMinsEl) runMinsEl.textContent = `약 ${neededRunMins}분 달리기`;
+  if (jumpCountEl) jumpCountEl.textContent = `${neededJumps.toLocaleString()}개`;
+  if (jumpMinsEl) jumpMinsEl.textContent = `약 ${neededJumpMins}분 줄넘기`;
+  if (walkMinsEl) walkMinsEl.textContent = `약 ${walkMins}분`;
+  if (sportMinsEl) sportMinsEl.textContent = `약 ${sportMins}분`;
+  if (stairMinsEl) stairMinsEl.textContent = `약 ${stairMins}분`;
+
+  // 오늘 현재 로그인 학생이 기록한 운동량으로 소모한 칼로리 계산
+  const records = getStudentRecords(currentStudentId);
+  const todayRec = records[currentDateStr] || { run: 0, jump: 0 };
+  const todayRun = Number(todayRec.run || 0);
+  const todayJump = Number(todayRec.jump || 0);
+  const burnedToday = Math.round(todayRun * 15 + (todayJump / 100) * 12);
+
+  if (todaySummaryEl) {
+    todaySummaryEl.textContent = `${currentDateStr.slice(5)} 달리기 ${todayRun}바퀴·줄넘기 ${todayJump.toLocaleString()}개`;
+  }
+  if (todayBurnedEl) {
+    todayBurnedEl.textContent = `${burnedToday.toLocaleString()} kcal 소모`;
+  }
+
+  const burnPct = totalKcal > 0 ? Math.min(100, Math.round((burnedToday / totalKcal) * 100)) : 0;
+  if (burnBarEl) burnBarEl.style.width = `${burnPct}%`;
+
+  if (remainTextEl) {
+    const remainKcal = Math.max(0, totalKcal - burnedToday);
+    if (totalKcal === 0) {
+      remainTextEl.textContent = "음식을 선택하면 소모에 필요한 달리기·줄넘기 운동량을 알려드려요!";
+    } else if (remainKcal === 0) {
+      remainTextEl.textContent = "🎉 대단해요! 오늘 한 운동으로 먹은 음식 칼로리를 100% 모두 태웠어요!";
+    } else {
+      const remLaps = (remainKcal / 15).toFixed(1).replace(/\.0$/, "");
+      const remJumps = (Math.round((remainKcal / 12) * 10) * 10).toLocaleString();
+      remainTextEl.textContent = `🔥 남은 ${remainKcal.toLocaleString()} kcal를 더 태우려면 달리기 ${remLaps}바퀴 또는 줄넘기 ${remJumps}개가 필요해요!`;
+    }
+  }
 }
 
 let toastTimer = null;

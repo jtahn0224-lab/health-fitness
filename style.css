@@ -1172,6 +1172,293 @@ input[type="number"] {
   font-weight: 700;
 }
 
+/* ============================================================================
+   [탭 4] 🍔 음식 열량 & 소모 운동량 계산기 스타일
+   ============================================================================ */
+.calorie-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.food-input-row {
+  display: grid;
+  grid-template-columns: 1.5fr 0.9fr auto;
+  gap: 6px;
+}
+
+.food-input-row input,
+.food-input-row select {
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  font-size: 0.84rem;
+  font-weight: 700;
+  background: #fff;
+  font-family: inherit;
+}
+
+.food-preset-section {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.food-chip-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.food-chip {
+  font-size: 0.74rem;
+  font-weight: 800;
+  padding: 5px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-soft);
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.food-chip:hover,
+.food-chip:active {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.eaten-list-box {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+}
+
+.custom-kcal-inline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--text-muted);
+}
+
+.custom-kcal-inline input {
+  width: 68px;
+  padding: 3px 6px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-align: right;
+}
+
+.eaten-food-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.eaten-food-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 11px;
+  border-radius: 10px;
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.eaten-food-item:hover {
+  border-color: var(--danger);
+  background: #fff5f5;
+}
+
+.eaten-kcal-badge {
+  font-size: 0.78rem;
+  font-weight: 900;
+  color: var(--run);
+  background: #ffedd5;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.cal-total-banner {
+  background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+  border: 1.5px solid #fed7aa;
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.cal-total-label {
+  display: block;
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: #9a3412;
+}
+
+.cal-total-val {
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: #ea580c;
+}
+
+.cal-std-note {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #9a3412;
+  background: rgba(255, 255, 255, 0.75);
+  padding: 4px 8px;
+  border-radius: 999px;
+}
+
+.burn-section-title {
+  font-size: 0.9rem;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.burn-main-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.burn-box {
+  border-radius: 14px;
+  padding: 12px;
+  border: 1.5px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.burn-box.run {
+  background: #fffaf5;
+  border-color: #fed7aa;
+}
+
+.burn-box.jump {
+  background: #f4faff;
+  border-color: #bae6fd;
+}
+
+.burn-box-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.burn-icon {
+  font-size: 1.4rem;
+}
+
+.burn-box-head strong {
+  display: block;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.burn-box-head small {
+  display: block;
+  font-size: 0.66rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.burn-box-value {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.burn-box.run .burn-box-value strong {
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: var(--run);
+}
+
+.burn-box.jump .burn-box-value strong {
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: var(--jump);
+}
+
+.burn-box-value span {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.burn-sub-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.burn-sub-item {
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 6px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.burn-sub-item span {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.burn-sub-item strong {
+  font-size: 0.88rem;
+  font-weight: 900;
+}
+
+.today-burn-compare {
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.tbc-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.text-success {
+  color: var(--success);
+  font-weight: 900;
+}
+
+.tbc-remain {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
 /* 3. 스마트폰 하단 고정 탭 네비게이션 */
 .bottom-nav {
   position: fixed;
@@ -1183,7 +1470,7 @@ input[type="number"] {
   background: var(--surface);
   border-top: 1px solid var(--border);
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   padding: 6px 8px 10px;
   z-index: 50;
   box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.06);
@@ -1625,6 +1912,14 @@ input[type="number"] {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 12px;
+  }
+
+  /* [탭 4] PC에서 음식 입력(좌측)과 소모 운동량 결과(우측)를 2열로 나란히 배치 */
+  .calorie-layout {
+    display: grid;
+    grid-template-columns: 1.05fr 1fr;
+    gap: 20px;
+    align-items: start;
   }
 
   .toast {
