@@ -305,6 +305,62 @@ body {
   color: var(--danger);
 }
 
+/* 🎯 이번 주(1주당) 목표 달성 현황 배너 */
+.weekly-goal-banner {
+  background: var(--surface);
+  border: 1.5px solid #bfdbfe;
+  border-radius: 14px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.wg-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 7px;
+}
+
+.wg-title {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.wg-title small {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.wg-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.wg-item {
+  background: var(--surface-soft);
+  border-radius: 10px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+}
+
+.wg-item span {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.wg-item strong {
+  font-size: 0.84rem;
+  font-weight: 900;
+}
+
 /* 운동 카운터 카드 (달리기 / 줄넘기) */
 .workout-card {
   background: var(--surface);
@@ -1487,6 +1543,7 @@ input[type="number"] {
   }
 
   #recordForm .date-bar-card,
+  #recordForm .weekly-goal-banner,
   #recordForm .compact-card,
   #recordForm .save-bar {
     grid-column: 1 / -1;

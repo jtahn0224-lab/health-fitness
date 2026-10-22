@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>건강체력교실</title>
   <style>[hidden] { display: none !important; }</style>
-  <link rel="stylesheet" href="style.css?v=20261022_tcal" />
+  <link rel="stylesheet" href="style.css?v=20261022_wgoal" />
 </head>
 <body>
   <div class="mobile-shell">
@@ -38,24 +38,24 @@
         <button type="button" id="resetDemoBtn" class="btn-mini-ghost">초기화</button>
       </div>
 
-      <!-- 2. 한눈에 들어오는 3칸 핵심 요약 바 -->
-      <div class="quick-stats-bar" aria-label="이번 달 내 운동 요약">
+      <!-- 2. 한눈에 들어오는 3칸 핵심 요약 바 (이번 달 누적 + 1주당 목표 달성 현황) -->
+      <div class="quick-stats-bar" aria-label="이번 달 및 이번 주 내 운동 요약">
         <div class="q-stat">
           <span class="q-stat-label" id="summaryStudentLabel">이번 달 참여</span>
           <strong id="statDays" class="q-stat-val">0일</strong>
-          <small id="statStreak" class="q-stat-sub">🔥 0일 연속</small>
+          <small id="statStreak" class="q-stat-sub">주간 0/3일</small>
         </div>
         <div class="q-divider"></div>
         <div class="q-stat">
           <span class="q-stat-label">누적 달리기</span>
           <strong id="statRunTotal" class="q-stat-val text-run">0바퀴</strong>
-          <small class="q-stat-sub">목표 일 <span id="runGoalText">5바퀴</span></small>
+          <small class="q-stat-sub">1주 <span id="runGoalText">0/15바퀴</span></small>
         </div>
         <div class="q-divider"></div>
         <div class="q-stat">
           <span class="q-stat-label">누적 줄넘기</span>
           <strong id="statJumpTotal" class="q-stat-val text-jump">0개</strong>
-          <small class="q-stat-sub">목표 일 <span id="jumpGoalText">300개</span></small>
+          <small class="q-stat-sub">1주 <span id="jumpGoalText">0/1,000개</span></small>
         </div>
       </div>
     </header>
@@ -77,6 +77,28 @@
             <span id="recordStatusBadge" class="status-badge">미기록</span>
           </div>
 
+          <!-- 🎯 이번 주(1주당) 목표 달성 현황 배너 -->
+          <div class="weekly-goal-banner">
+            <div class="wg-top">
+              <span class="wg-title">🎯 이번 주 목표 현황 <small id="weeklyRangeLabel">(월~일)</small></span>
+              <span id="weeklyStatusBadge" class="status-badge">진행 중</span>
+            </div>
+            <div class="wg-metrics">
+              <div class="wg-item">
+                <span>🗓️ 주간 참여</span>
+                <strong id="wgDaysText">0 / 3일</strong>
+              </div>
+              <div class="wg-item">
+                <span>🏃 주간 달리기</span>
+                <strong id="wgRunText" class="text-run">0 / 15바퀴</strong>
+              </div>
+              <div class="wg-item">
+                <span>🪢 주간 줄넘기</span>
+                <strong id="wgJumpText" class="text-jump">0 / 1,000개</strong>
+              </div>
+            </div>
+          </div>
+
           <!-- 🏃 달리기 카운터 카드 -->
           <div class="workout-card run-theme">
             <div class="workout-top">
@@ -84,7 +106,7 @@
                 <span class="workout-icon">🏃</span>
                 <div>
                   <h2>달리기</h2>
-                  <p>일일 목표 <span id="coachGoalDescRun">5</span>바퀴</p>
+                  <p>1주 목표 <strong id="weeklyGoalDescRun">15</strong>바퀴 · 1일 권장 <span id="coachGoalDescRun">5</span>바퀴</p>
                 </div>
               </div>
               <div class="workout-number-box">
@@ -123,7 +145,7 @@
                 <span class="workout-icon">🪢</span>
                 <div>
                   <h2>줄넘기</h2>
-                  <p>일일 목표 <span id="coachGoalDescJump">300</span>개</p>
+                  <p>1주 목표 <strong id="weeklyGoalDescJump">1,000</strong>개 · 1일 권장 <span id="coachGoalDescJump">300</span>개</p>
                 </div>
               </div>
               <div class="workout-number-box">
@@ -264,7 +286,7 @@
         <div class="compact-card teacher-tools">
           <div class="tool-btn-row">
             <button type="button" id="openAddStudentBtn" class="tool-btn primary">➕ 학생등록</button>
-            <button type="button" id="openGoalConfigBtn" class="tool-btn">🎯 목표설정</button>
+            <button type="button" id="openGoalConfigBtn" class="tool-btn">🎯 주간목표</button>
             <button type="button" id="openPwChangeBtn" class="tool-btn">🔑 비번변경</button>
             <button type="button" id="exportCsvBtn" class="tool-btn">📥 엑셀저장</button>
           </div>
@@ -319,24 +341,46 @@
           </form>
         </div>
 
-        <!-- 접이식 패널 2: 일일 목표 설정 -->
+        <!-- 접이식 패널 2: 1주당(주간) 목표 및 일일 권장량 설정 -->
         <div id="goalConfigPanel" class="compact-card sub-panel" hidden>
           <div class="section-title-row">
-            <h3>🎯 일일 권장 목표 설정 (⭐ 기준)</h3>
+            <h3>🎯 1주당(주간) 목표 설정</h3>
             <button type="button" id="closeGoalConfigBtn" class="btn-mini-ghost">닫기 ✕</button>
           </div>
           <form id="goalConfigForm" class="sub-form">
-            <div class="grid-2">
+            <div class="quick-student-presets" style="margin-top: 0; margin-bottom: 4px;">
+              <span class="preset-label">⚡ 추천 주간목표:</span>
+              <button type="button" class="preset-chip goal-preset-btn" data-wdays="3" data-wrun="9" data-wjump="600" data-drun="3" data-djump="200">초급 (주3일·9바퀴·600개)</button>
+              <button type="button" class="preset-chip goal-preset-btn" data-wdays="3" data-wrun="15" data-wjump="1000" data-drun="5" data-djump="300">기본 (주3일·15바퀴·1000개)</button>
+              <button type="button" class="preset-chip goal-preset-btn" data-wdays="4" data-wrun="20" data-wjump="1500" data-drun="5" data-djump="400">도전 (주4일·20바퀴·1500개)</button>
+            </div>
+
+            <div class="grid-3">
               <div>
-                <label for="cfgRunGoal">달리기 목표 (바퀴)</label>
-                <input type="number" id="cfgRunGoal" min="1" max="100" step="0.5" value="5" required />
+                <label for="cfgWeeklyDaysGoal">1주 참여일 (일)</label>
+                <input type="number" id="cfgWeeklyDaysGoal" min="1" max="7" step="1" value="3" required />
               </div>
               <div>
-                <label for="cfgJumpGoal">줄넘기 목표 (개)</label>
+                <label for="cfgWeeklyRunGoal">1주 달리기 (바퀴)</label>
+                <input type="number" id="cfgWeeklyRunGoal" min="1" max="500" step="1" value="15" required />
+              </div>
+              <div>
+                <label for="cfgWeeklyJumpGoal">1주 줄넘기 (개)</label>
+                <input type="number" id="cfgWeeklyJumpGoal" min="50" max="50000" step="50" value="1000" required />
+              </div>
+            </div>
+
+            <div class="grid-2" style="padding-top: 6px; border-top: 1px dashed var(--border);">
+              <div>
+                <label for="cfgRunGoal">1회(일일) 권장 달리기 (⭐ 기준)</label>
+                <input type="number" id="cfgRunGoal" min="0.5" max="100" step="0.5" value="5" required />
+              </div>
+              <div>
+                <label for="cfgJumpGoal">1회(일일) 권장 줄넘기 (⭐ 기준)</label>
                 <input type="number" id="cfgJumpGoal" min="10" max="10000" step="10" value="300" required />
               </div>
             </div>
-            <button type="submit" class="btn-save-main btn-sm-block">목표 기준 저장</button>
+            <button type="submit" class="btn-save-main btn-sm-block">🎯 1주당 목표 저장 및 적용</button>
           </form>
         </div>
 
@@ -618,7 +662,7 @@
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   </div>
 
-  <script src="firebase-config.js?v=20261022_tcal"></script>
-  <script src="app.js?v=20261022_tcal"></script>
+  <script src="firebase-config.js?v=20261022_wgoal"></script>
+  <script src="app.js?v=20261022_wgoal"></script>
 </body>
 </html>

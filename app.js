@@ -114,11 +114,21 @@ let fbState = {
 };
 
 function loadGoals() {
+  const defaults = { weeklyDays: 3, weeklyRun: 15, weeklyJump: 1000, run: 5, jump: 300 };
   try {
     const raw = localStorage.getItem(GOALS_STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        weeklyDays: Number(parsed.weeklyDays || defaults.weeklyDays),
+        weeklyRun: Number(parsed.weeklyRun || defaults.weeklyRun),
+        weeklyJump: Number(parsed.weeklyJump || defaults.weeklyJump),
+        run: Number(parsed.run || defaults.run),
+        jump: Number(parsed.jump || defaults.jump)
+      };
+    }
   } catch (e) {}
-  return { run: 5, jump: 300 };
+  return defaults;
 }
 
 function saveGoals() {
@@ -223,12 +233,22 @@ if (document.readyState === "loading") {
 }
 
 function updateGoalTexts() {
-  document.getElementById("runGoalText").textContent = `${goals.run}바퀴`;
-  document.getElementById("jumpGoalText").textContent = `${goals.jump}개`;
   const rDesc = document.getElementById("coachGoalDescRun");
   const jDesc = document.getElementById("coachGoalDescJump");
+  const wRunDesc = document.getElementById("weeklyGoalDescRun");
+  const wJumpDesc = document.getElementById("weeklyGoalDescJump");
   if (rDesc) rDesc.textContent = goals.run;
-  if (jDesc) jDesc.textContent = goals.jump;
+  if (jDesc) jDesc.textContent = goals.jump.toLocaleString();
+  if (wRunDesc) wRunDesc.textContent = goals.weeklyRun;
+  if (wJumpDesc) wJumpDesc.textContent = goals.weeklyJump.toLocaleString();
+
+  const wDaysIn = document.getElementById("cfgWeeklyDaysGoal");
+  const wRunIn = document.getElementById("cfgWeeklyRunGoal");
+  const wJumpIn = document.getElementById("cfgWeeklyJumpGoal");
+  if (wDaysIn) wDaysIn.value = goals.weeklyDays;
+  if (wRunIn) wRunIn.value = goals.weeklyRun;
+  if (wJumpIn) wJumpIn.value = goals.weeklyJump;
+
   document.getElementById("cfgRunGoal").value = goals.run;
   document.getElementById("cfgJumpGoal").value = goals.jump;
 }
@@ -704,6 +724,23 @@ function updateProgressBars() {
 // ============================================================================
 // 요약 통계 & 최근 기록
 // ============================================================================
+function getWeekDates(baseDateStr = currentDateStr || TODAY_STR) {
+  const [y, m, d] = baseDateStr.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  const dayOfWeek = dt.getDay(); // 0(일) ~ 6(토)
+  const diffToMon = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const mon = new Date(y, m - 1, d + diffToMon);
+  const dates = [];
+  for (let i = 0; i < 7; i++) {
+    const cur = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + i);
+    const yy = cur.getFullYear();
+    const mm = String(cur.getMonth() + 1).padStart(2, "0");
+    const dd = String(cur.getDate()).padStart(2, "0");
+    dates.push(`${yy}-${mm}-${dd}`);
+  }
+  return dates;
+}
+
 function computeStudentStats(studentId, year = currentCalYear, month = currentCalMonth) {
   const records = getStudentRecords(studentId);
   const monthPrefix = `${year}-${String(month).padStart(2, "0")}`;
@@ -722,6 +759,24 @@ function computeStudentStats(studentId, year = currentCalYear, month = currentCa
       totalJump += Number(rec.jump || 0);
     }
   });
+
+  // 선택한 날짜가 속한 주(월~일) 기준 1주당 운동량 계산
+  const weekDates = getWeekDates(currentDateStr || TODAY_STR);
+  let weekDays = 0;
+  let weekRun = 0;
+  let weekJump = 0;
+  weekDates.forEach((dStr) => {
+    const rec = records[dStr];
+    if (isParticipated(rec)) {
+      weekDays += 1;
+      weekRun += Number(rec.run || 0);
+      weekJump += Number(rec.jump || 0);
+    }
+  });
+
+  const weeklyGoalMet =
+    weekDays >= goals.weeklyDays && weekRun >= goals.weeklyRun && weekJump >= goals.weeklyJump;
+  const weekRangeLabel = `${weekDates[0].slice(5).replace("-", "/")}~${weekDates[6].slice(5).replace("-", "/")}`;
 
   const activeDates = Object.keys(records)
     .filter((d) => isParticipated(records[d]))
@@ -742,15 +797,67 @@ function computeStudentStats(studentId, year = currentCalYear, month = currentCa
   const lastDate = activeDates.length > 0 ? activeDates[activeDates.length - 1] : "-";
   const participatedToday = Boolean(records[TODAY_STR] && isParticipated(records[TODAY_STR]));
 
-  return { monthDays, goalDays, totalRun, totalJump, streak, lastDate, participatedToday };
+  return {
+    monthDays,
+    goalDays,
+    totalRun,
+    totalJump,
+    weekDays,
+    weekRun,
+    weekJump,
+    weeklyGoalMet,
+    weekRangeLabel,
+    streak,
+    lastDate,
+    participatedToday
+  };
 }
 
 function renderSummaryStats() {
   const st = computeStudentStats(currentStudentId);
   document.getElementById("statDays").textContent = `${st.monthDays}일`;
-  document.getElementById("statStreak").textContent = `🔥 ${st.streak}일 연속`;
+  document.getElementById("statStreak").textContent = `1주 ${st.weekDays}/${goals.weeklyDays}일 · 🔥${st.streak}일`;
   document.getElementById("statRunTotal").textContent = `${st.totalRun}바퀴`;
   document.getElementById("statJumpTotal").textContent = `${st.totalJump.toLocaleString()}개`;
+
+  const runGoalEl = document.getElementById("runGoalText");
+  const jumpGoalEl = document.getElementById("jumpGoalText");
+  if (runGoalEl) runGoalEl.textContent = `${st.weekRun}/${goals.weeklyRun}바퀴`;
+  if (jumpGoalEl) jumpGoalEl.textContent = `${st.weekJump.toLocaleString()}/${goals.weeklyJump.toLocaleString()}개`;
+
+  const wgRange = document.getElementById("weeklyRangeLabel");
+  const wgBadge = document.getElementById("weeklyStatusBadge");
+  const wgDays = document.getElementById("wgDaysText");
+  const wgRun = document.getElementById("wgRunText");
+  const wgJump = document.getElementById("wgJumpText");
+
+  if (wgRange) wgRange.textContent = `(${st.weekRangeLabel})`;
+  if (wgDays) wgDays.textContent = `${st.weekDays} / ${goals.weeklyDays}일`;
+  if (wgRun) wgRun.textContent = `${st.weekRun} / ${goals.weeklyRun}바퀴`;
+  if (wgJump) wgJump.textContent = `${st.weekJump.toLocaleString()} / ${goals.weeklyJump.toLocaleString()}개`;
+
+  if (wgBadge) {
+    if (st.weeklyGoalMet) {
+      wgBadge.textContent = "🏆 1주 목표 달성!";
+      wgBadge.className = "status-badge gold";
+    } else if (st.weekDays > 0) {
+      const pct = Math.min(
+        99,
+        Math.round(
+          ((Math.min(1, st.weekDays / goals.weeklyDays) +
+            Math.min(1, st.weekRun / goals.weeklyRun) +
+            Math.min(1, st.weekJump / goals.weeklyJump)) /
+            3) *
+            100
+        )
+      );
+      wgBadge.textContent = `🏃 주간 ${pct}% 진행중`;
+      wgBadge.className = "status-badge done";
+    } else {
+      wgBadge.textContent = "이번 주 미참여";
+      wgBadge.className = "status-badge";
+    }
+  }
 }
 
 function renderRecentList() {
@@ -988,15 +1095,36 @@ function initTeacherControls() {
     showToast(`➕ ${formatStudentLabel(newStudent)} 등록 완료!`);
   });
 
-  document.getElementById("goalConfigForm").addEventListener("submit", (e) => {
+  document.querySelectorAll(".goal-preset-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.getElementById("cfgWeeklyDaysGoal").value = btn.dataset.wdays;
+      document.getElementById("cfgWeeklyRunGoal").value = btn.dataset.wrun;
+      document.getElementById("cfgWeeklyJumpGoal").value = btn.dataset.wjump;
+      document.getElementById("cfgRunGoal").value = btn.dataset.drun;
+      document.getElementById("cfgJumpGoal").value = btn.dataset.djump;
+    });
+  });
+
+  document.getElementById("goalConfigForm").addEventListener("submit", async (e) => {
     e.preventDefault();
+    goals.weeklyDays = Math.min(7, Math.max(1, Math.round(Number(document.getElementById("cfgWeeklyDaysGoal").value || 3))));
+    goals.weeklyRun = Math.max(1, Number(document.getElementById("cfgWeeklyRunGoal").value || 15));
+    goals.weeklyJump = Math.max(50, Math.round(Number(document.getElementById("cfgWeeklyJumpGoal").value || 1000)));
     goals.run = Math.max(0.5, Number(document.getElementById("cfgRunGoal").value || 5));
     goals.jump = Math.max(10, Math.round(Number(document.getElementById("cfgJumpGoal").value || 300)));
     saveGoals();
     updateGoalTexts();
     goalPanel.hidden = true;
     syncAllUI();
-    showToast(`🎯 목표: 달리기 ${goals.run}바퀴 · 줄넘기 ${goals.jump}개 적용!`);
+
+    if (fbState.connected && fbState.sdk) {
+      try {
+        const { ref, set } = fbState.sdk;
+        await set(ref(fbState.db, "fitnessClassroom/goals"), goals);
+      } catch (err) {}
+    }
+
+    showToast(`🎯 1주 목표(주${goals.weeklyDays}일·달리기 ${goals.weeklyRun}바퀴·줄넘기 ${goals.weeklyJump}개) 적용 완료!`);
   });
 
   document.getElementById("pwChangeForm").addEventListener("submit", (e) => {
@@ -1042,6 +1170,7 @@ function renderTeacherDashboard() {
   let todayParticipants = 0;
   let sumMonthDays = 0;
   let sumGoalDays = 0;
+  let weeklyGoalAchievers = 0;
   let sumRun = 0;
   let sumJump = 0;
   const lowStudentNames = [];
@@ -1049,6 +1178,7 @@ function renderTeacherDashboard() {
   const enriched = allStudents.map((s) => {
     const st = computeStudentStats(s.id, currentCalYear, currentCalMonth);
     if (st.participatedToday) todayParticipants++;
+    if (st.weeklyGoalMet) weeklyGoalAchievers++;
     sumMonthDays += st.monthDays;
     sumGoalDays += st.goalDays;
     sumRun += st.totalRun;
@@ -1061,13 +1191,12 @@ function renderTeacherDashboard() {
 
   const todayRate = totalCount > 0 ? Math.round((todayParticipants / totalCount) * 100) : 0;
   const avgDays = totalCount > 0 ? (sumMonthDays / totalCount).toFixed(1) : "0.0";
-  const goalRate = sumMonthDays > 0 ? Math.round((sumGoalDays / sumMonthDays) * 100) : 0;
 
   document.getElementById("kpiTotalStudents").textContent = `${totalCount}명`;
   document.getElementById("kpiTodayRate").textContent = `오늘 ${todayParticipants}명 참여 (${todayRate}%)`;
-  document.getElementById("kpiMonthLabel").textContent = `${currentCalMonth}월 평균 참여`;
+  document.getElementById("kpiMonthLabel").textContent = `${currentCalMonth}월 평균 · 주간달성`;
   document.getElementById("kpiAvgDays").textContent = `${avgDays}일`;
-  document.getElementById("kpiGoalRate").textContent = `⭐ 완주율 ${goalRate}%`;
+  document.getElementById("kpiGoalRate").textContent = `🏆 1주목표 달성 ${weeklyGoalAchievers}명`;
   document.getElementById("kpiClassRun").textContent = `🏃 ${sumRun.toLocaleString()}바퀴`;
   document.getElementById("kpiClassJump").textContent = `🪢 줄넘기 ${sumJump.toLocaleString()}개`;
   document.getElementById("kpiLowCount").textContent = `${lowStudentNames.length}명`;
@@ -1105,8 +1234,8 @@ function renderTeacherDashboard() {
       .map((s) => {
         const st = s.stats;
         let statusBadge = `<span class="status-badge done">✅ 성실</span>`;
-        if (st.monthDays >= 8 && st.goalDays >= 5) {
-          statusBadge = `<span class="status-badge gold">🌟 우수</span>`;
+        if (st.weeklyGoalMet) {
+          statusBadge = `<span class="status-badge gold">🏆 1주목표 달성</span>`;
         } else if (st.monthDays < 4) {
           statusBadge = `<span class="status-badge warn">🚨 독려필요</span>`;
         }
@@ -1122,9 +1251,9 @@ function renderTeacherDashboard() {
             </div>
             <div class="std-card-bottom">
               <div class="std-metrics">
-                <span>🗓️ ${st.monthDays}일 <small>(⭐${st.goalDays})</small></span>
-                <span class="text-run">🏃 ${st.totalRun}바퀴</span>
-                <span class="text-jump">🪢 ${st.totalJump.toLocaleString()}개</span>
+                <span>1주 ${st.weekDays}/${goals.weeklyDays}일 <small>(이달 ${st.monthDays}일)</small></span>
+                <span class="text-run">🏃 1주 ${st.weekRun}/${goals.weeklyRun}바퀴</span>
+                <span class="text-jump">🪢 1주 ${st.weekJump.toLocaleString()}/${goals.weeklyJump.toLocaleString()}개</span>
               </div>
               <div class="std-actions">
                 <button type="button" class="btn-table view-student-btn" data-id="${s.id}">📅 달력</button>
