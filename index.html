@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>건강체력교실</title>
   <style>[hidden] { display: none !important; }</style>
-  <link rel="stylesheet" href="style.css?v=20261022_syncfix" />
+  <link rel="stylesheet" href="style.css?v=20261023_syncfix2" />
 </head>
 <body>
   <div class="mobile-shell">
@@ -735,14 +735,14 @@
           <div class="login-highlight-box">
             <div class="field-row-2">
               <div>
-                <label for="loginStudentCode">학번 (4~5자리)</label>
+                <label for="loginStudentCode">학번 (3~5자리) *</label>
                 <input
                   type="text"
                   id="loginStudentCode"
                   maxlength="5"
                   inputmode="numeric"
-                  value="1111"
-                  placeholder="예: 1111"
+                  value=""
+                  placeholder="예: 10111 또는 1111"
                   class="big-input"
                 />
               </div>
@@ -751,9 +751,9 @@
                 <input
                   type="text"
                   id="loginName"
-                  value="김양주"
+                  value=""
                   maxlength="20"
-                  placeholder="예: 김양주"
+                  placeholder="이름 입력 (예: 김양주)"
                   class="big-input"
                   required
                 />
@@ -772,11 +772,11 @@
               </div>
               <div>
                 <label for="loginClass">반</label>
-                <input type="number" id="loginClass" min="1" max="20" value="1" required />
+                <input type="number" id="loginClass" min="1" max="20" value="" placeholder="반" required />
               </div>
               <div>
                 <label for="loginNumber">번호</label>
-                <input type="number" id="loginNumber" min="1" max="50" value="11" required />
+                <input type="number" id="loginNumber" min="1" max="50" value="" placeholder="번호" required />
               </div>
             </div>
           </div>
@@ -877,7 +877,7 @@
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   </div>
 
-  <script src="firebase-config.js?v=20261022_syncfix"></script>
-  <script src="app.js?v=20261022_syncfix"></script>
+  <script src="firebase-config.js?v=20261023_syncfix2"></script>
+  <script src="app.js?v=20261023_syncfix2"></script>
 </body>
 </html>

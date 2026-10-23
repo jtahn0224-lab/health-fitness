@@ -8,7 +8,16 @@ const FB_CONFIG_STORAGE_KEY = "middle_school_fitness_fb_config_v1";
 const GOALS_STORAGE_KEY = "middle_school_fitness_goals_v1";
 const TEACHER_PW_STORAGE_KEY = "middle_school_fitness_teacher_pw_v1";
 const SESSION_STORAGE_KEY = "middle_school_fitness_session_v1";
-const TODAY_STR = "2026-10-22";
+
+function getLocalTodayStr() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+const TODAY_STR = getLocalTodayStr();
 
 let goals = loadGoals();
 let teacherPassword = loadTeacherPassword();
@@ -120,8 +129,8 @@ let store = loadStore();
 let currentStudentId = Object.keys(store)[0] || "student1";
 let currentDateStr = TODAY_STR;
 let currentSession = "morning"; // "morning" (🌅 아침 시간) | "lunch" (☀️ 점심시간)
-let currentCalYear = 2026;
-let currentCalMonth = 10;
+let currentCalYear = Number(TODAY_STR.slice(0, 4)) || 2026;
+let currentCalMonth = Number(TODAY_STR.slice(5, 7)) || 10;
 let currentMood = "😄 상쾌해요";
 
 let authSession = {
@@ -477,9 +486,10 @@ function initLoginModal() {
   modeBtnStudent.addEventListener("click", () => switchLoginMode("student"));
   modeBtnTeacher.addEventListener("click", () => switchLoginMode("teacher"));
 
-  codeInput.addEventListener("input", () => {
+  const parseStudentCodeToFields = () => {
     const digits = codeInput.value.replace(/\D/g, "");
     if (digits.length === 5) {
+      // 예: 10203 -> 1학년 2반 3번
       const g = Number(digits[0]);
       const c = Number(digits.slice(1, 3));
       const n = Number(digits.slice(3, 5));
@@ -487,14 +497,30 @@ function initLoginModal() {
       if (c >= 1 && c <= 20) classInput.value = String(c);
       if (n >= 1 && n <= 50) numInput.value = String(n);
     } else if (digits.length === 4) {
+      // 예: 1111 -> 1학년 1반 11번, 2035 -> 2학년 3반 5번
+      const g = Number(digits[0]);
+      let c = Number(digits[1]);
+      let n = Number(digits.slice(2, 4));
+      if (c === 0) {
+        c = Number(digits.slice(1, 3));
+        n = Number(digits.slice(3, 4));
+      }
+      if (g >= 1 && g <= 3) gradeSelect.value = String(g);
+      if (c >= 1 && c <= 20) classInput.value = String(c);
+      if (n >= 1 && n <= 50) numInput.value = String(n);
+    } else if (digits.length === 3) {
+      // 예: 123 -> 1학년 2반 3번
       const g = Number(digits[0]);
       const c = Number(digits[1]);
-      const n = Number(digits.slice(2, 4));
+      const n = Number(digits[2]);
       if (g >= 1 && g <= 3) gradeSelect.value = String(g);
       if (c >= 1 && c <= 20) classInput.value = String(c);
       if (n >= 1 && n <= 50) numInput.value = String(n);
     }
-  });
+  };
+
+  codeInput.addEventListener("input", parseStudentCodeToFields);
+  codeInput.addEventListener("change", parseStudentCodeToFields);
 
   const syncCodeFromFields = () => {
     const g = Number(gradeSelect.value || 1);
@@ -522,16 +548,29 @@ function initLoginModal() {
 
   const handleStudentLogin = async (e) => {
     if (e) e.preventDefault();
-    const grade = Math.min(3, Math.max(1, Number(gradeSelect.value || 2)));
-    const classNum = Math.min(20, Math.max(1, Number(classInput.value || 1)));
-    const studentNum = Math.min(50, Math.max(1, Number(numInput.value || 1)));
+    if (codeInput.value.trim()) {
+      parseStudentCodeToFields();
+    }
+
+    const rawClass = Number(classInput.value);
+    const rawNum = Number(numInput.value);
     const name = nameInput.value.trim();
+
+    if (!rawClass || !rawNum) {
+      showToast("학번(예: 10111 또는 1111)이나 반·번호를 입력해 주세요!");
+      codeInput.focus();
+      return;
+    }
 
     if (!name) {
       showToast("학생 이름을 입력해 주세요!");
       nameInput.focus();
       return;
     }
+
+    const grade = Math.min(3, Math.max(1, Number(gradeSelect.value || 1)));
+    const classNum = Math.min(20, Math.max(1, rawClass));
+    const studentNum = Math.min(50, Math.max(1, rawNum));
 
     let foundId = Object.keys(store).find((id) => {
       const s = store[id];
@@ -554,14 +593,19 @@ function initLoginModal() {
         name,
         records: {}
       };
-      if (fbState.connected) {
-        await syncStudentDocToFirestore(foundId, store[foundId]);
-      }
     }
 
     saveStore();
     applyStudentLogin(foundId, false);
     closeLoginModal();
+
+    // 로그인 즉시 Firebase 연결 확인 및 학생 정보 실시간 서버 동기화
+    await ensureFirebaseConnected();
+    if (fbState.connected && store[foundId]) {
+      try {
+        await syncStudentDocToFirestore(foundId, store[foundId]);
+      } catch (err) {}
+    }
   };
 
   studentForm.addEventListener("submit", handleStudentLogin);
@@ -837,6 +881,11 @@ function initRecordForm() {
     store[currentStudentId].records[currentDateStr] = updatedDayObj;
     saveStore();
     syncAllUI();
+
+    // 저장 시 만약 아직 Firebase 연결이 완료되지 않았다면 즉시 재연결 시도 후 업로드
+    if (!fbState.connected) {
+      await ensureFirebaseConnected();
+    }
 
     if (fbState.connected) {
       try {
@@ -2019,7 +2068,16 @@ function loadSavedFirebaseConfig() {
     }
   } catch (e) {}
 
-  // 2순위: 브라우저 localStorage에 저장된 설정
+  // 2순위: firebase-config.js 파일에 직접 입력된 DEFAULT_FIREBASE_CONFIG (과거 잘못된 로컬 캐시보다 우선 적용)
+  const fromFile = normalizeRtdbConfig(DEFAULT_FIREBASE_CONFIG);
+  if (fromFile && fromFile.databaseURL) {
+    try {
+      localStorage.setItem(FB_CONFIG_STORAGE_KEY, JSON.stringify(fromFile));
+    } catch (e) {}
+    return fromFile;
+  }
+
+  // 3순위: 브라우저 localStorage에 저장된 설정
   try {
     const raw = localStorage.getItem(FB_CONFIG_STORAGE_KEY);
     if (raw) {
@@ -2028,8 +2086,22 @@ function loadSavedFirebaseConfig() {
     }
   } catch (e) {}
 
-  // 3순위: firebase-config.js 파일에 직접 입력된 DEFAULT_FIREBASE_CONFIG
-  return normalizeRtdbConfig(DEFAULT_FIREBASE_CONFIG);
+  return null;
+}
+
+let fbConnectPromise = null;
+
+async function ensureFirebaseConnected() {
+  if (fbState.connected && fbState.db) return true;
+  if (fbConnectPromise) {
+    await fbConnectPromise;
+    return fbState.connected;
+  }
+  const savedConfig = loadSavedFirebaseConfig();
+  if (savedConfig && (savedConfig.databaseURL || savedConfig.projectId)) {
+    await connectToFirebase(savedConfig, true);
+  }
+  return fbState.connected;
 }
 
 function initFirebaseModal() {
@@ -2158,60 +2230,57 @@ async function connectToFirebase(rawConfig, isSilent = false) {
   const config = normalizeRtdbConfig(rawConfig);
   if (!config) return;
 
-  try {
-    statusBox.textContent = "⏳ Firebase Realtime Database 연결 중...";
+  fbConnectPromise = (async () => {
+    try {
+      if (statusBox) statusBox.textContent = "⏳ Firebase Realtime Database 연결 중...";
 
-    const [appMod, dbMod] = await Promise.all([
-      import("https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js"),
-      import("https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js")
-    ]);
+      const [appMod, dbMod] = await Promise.all([
+        import("https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js"),
+        import("https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js")
+      ]);
 
-    const app = appMod.initializeApp(config, "fitnessRtdbApp_" + Date.now());
-    let uid = "rtdb_user";
+      const app = appMod.initializeApp(config, "fitnessRtdbApp_" + Date.now());
+      const uid = "rtdb_user";
+      const db = dbMod.getDatabase(app, config.databaseURL);
 
-    // apiKey가 있고 익명 로그인이 켜져 있으면 로그인 시도 (꺼져 있어도 테스트 모드에서 정상 작동)
-    if (config.apiKey) {
+      if (fbState.unsubStudents) fbState.unsubStudents();
+
+      fbState = {
+        connected: true,
+        app,
+        auth: null,
+        db,
+        sdk: { ...appMod, ...dbMod },
+        uid,
+        unsubStudents: null,
+        unsubRecordsMap: {}
+      };
+
       try {
-        const authMod = await import("https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js");
-        const auth = authMod.getAuth(app);
-        const cred = await authMod.signInAnonymously(auth);
-        uid = cred.user.uid;
-      } catch (authErr) {
-        // 익명 로그인이 비활성화된 경우에도 Realtime DB 테스트 모드로 계속 진행
+        localStorage.setItem(FB_CONFIG_STORAGE_KEY, JSON.stringify(config));
+      } catch (e) {}
+      updateCloudBadgeUI(true, config.projectId);
+      startRealtimeListeners();
+
+      if (statusBox) statusBox.textContent = `✅ 실시간 DB 연결됨 (${config.databaseURL})`;
+      const shareBtn = document.getElementById("copyStudentShareUrlBtn");
+      if (shareBtn) shareBtn.hidden = false;
+      document.getElementById("seedToCloudBtn").hidden = false;
+      document.getElementById("disconnectFirebaseBtn").hidden = false;
+
+      if (!isSilent) showToast(`☁️ 실시간 데이터베이스 연결 완료!`);
+    } catch (err) {
+      if (statusBox) {
+        statusBox.textContent = `❌ 연결 실패: databaseURL 주소와 데이터베이스 규칙(테스트 모드)을 확인하세요.`;
       }
+      updateCloudBadgeUI(false);
+      if (!isSilent) showToast("Realtime DB 연결 실패");
+    } finally {
+      fbConnectPromise = null;
     }
+  })();
 
-    const db = dbMod.getDatabase(app, config.databaseURL);
-
-    if (fbState.unsubStudents) fbState.unsubStudents();
-
-    fbState = {
-      connected: true,
-      app,
-      auth: null,
-      db,
-      sdk: { ...appMod, ...dbMod },
-      uid,
-      unsubStudents: null,
-      unsubRecordsMap: {}
-    };
-
-    localStorage.setItem(FB_CONFIG_STORAGE_KEY, JSON.stringify(config));
-    updateCloudBadgeUI(true, config.projectId);
-    startRealtimeListeners();
-
-    statusBox.textContent = `✅ 실시간 DB 연결됨 (${config.databaseURL})`;
-    const shareBtn = document.getElementById("copyStudentShareUrlBtn");
-    if (shareBtn) shareBtn.hidden = false;
-    document.getElementById("seedToCloudBtn").hidden = false;
-    document.getElementById("disconnectFirebaseBtn").hidden = false;
-
-    if (!isSilent) showToast(`☁️ 실시간 데이터베이스 연결 완료!`);
-  } catch (err) {
-    statusBox.textContent = `❌ 연결 실패: databaseURL 주소와 데이터베이스 규칙(테스트 모드)을 확인하세요.`;
-    updateCloudBadgeUI(false);
-    if (!isSilent) showToast("Realtime DB 연결 실패");
-  }
+  await fbConnectPromise;
 }
 
 function disconnectFirebase() {
@@ -2290,6 +2359,31 @@ function startRealtimeListeners() {
           records: data.records || {}
         };
       });
+
+      // 현재 휴대폰에서 로그인한 학생이나 연결 직전에 입력한 기록이 서버 스냅샷에 아직 없다면 덮어쓰지 않고 보존 + 즉시 서버로 업로드
+      const activeLocalId = authSession?.role === "student" ? authSession.studentId : currentStudentId;
+      if (activeLocalId && store[activeLocalId]) {
+        const localStd = store[activeLocalId];
+        if (!nextStore[activeLocalId]) {
+          nextStore[activeLocalId] = localStd;
+          syncStudentDocToFirestore(activeLocalId, localStd).catch(() => {});
+          Object.entries(localStd.records || {}).forEach(([dKey, dRec]) => {
+            if (isParticipated(dRec)) {
+              syncRecordToFirestore(activeLocalId, dKey, dRec).catch(() => {});
+            }
+          });
+        } else {
+          // 학생이 방금 로컬에 기록했는데 서버에 아직 없는 날짜 기록이 있다면 병합 후 서버 업로드
+          const mergedRecords = { ...(nextStore[activeLocalId].records || {}) };
+          Object.entries(localStd.records || {}).forEach(([dKey, dRec]) => {
+            if (isParticipated(dRec) && !mergedRecords[dKey]) {
+              mergedRecords[dKey] = dRec;
+              syncRecordToFirestore(activeLocalId, dKey, dRec).catch(() => {});
+            }
+          });
+          nextStore[activeLocalId].records = mergedRecords;
+        }
+      }
 
       store = nextStore;
       if (!store[currentStudentId]) {
